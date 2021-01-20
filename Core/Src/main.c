@@ -29,6 +29,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "tft.h"
+#include "gt911.h"
 #include <stdio.h>
 /* USER CODE END Includes */
 
@@ -60,7 +61,8 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+volatile uint32_t time = 0;
+volatile uint32_t period = 0;
 /* USER CODE END 0 */
 
 /**
@@ -85,7 +87,6 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -103,87 +104,90 @@ int main(void)
   MX_FMC_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-
-  // Soft Boot-up
-	HAL_GPIO_WritePin(DISP_RESET_GPIO_Port, DISP_RESET_Pin, GPIO_PIN_RESET);
-  	HAL_GPIO_WritePin(DISP_EN_GPIO_Port, DISP_EN_Pin, GPIO_PIN_RESET);
-  	HAL_Delay(10);
-  	HAL_GPIO_WritePin(DISP_RESET_GPIO_Port, DISP_RESET_Pin, GPIO_PIN_SET);
-  	HAL_GPIO_WritePin(DISP_EN_GPIO_Port, DISP_EN_Pin, GPIO_PIN_SET);
-  	HAL_Delay(10);
-
-	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
-	for(uint32_t i=1023; i>0; i--){
-		TIM3->CCR1 = i;
-		HAL_Delay(1);
-	}
-	TIM3->CCR1 = 700;
-
-//	const uint32_t d_t = 1;
+  HAL_StatusTypeDef status;
 
 	struct tTftFramebuffer framebuffer = TFT_init_framebuffer(&hltdc);
+
+	// Soft Boot-up
+	HAL_GPIO_WritePin(DISP_EN_GPIO_Port, DISP_EN_Pin, GPIO_PIN_RESET);
+	HAL_Delay(100);
+	HAL_GPIO_WritePin(DISP_EN_GPIO_Port, DISP_EN_Pin, GPIO_PIN_SET);
+	HAL_Delay(100);
+
+	TFT_fill(framebuffer, 0xFFFFFFFF);
+
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+	for (uint32_t i = 1023; i > 0; i--) {
+		TIM3->CCR1 = i;
+		HAL_Delay(2);
+	}
+	TIM3->CCR1 = 0;
+	if(GT911_Init()!=HAL_OK){
+		while(1){
+			TFT_String(framebuffer, 0, 0, "Touch init error", 0xFFFF0000, 0x0);
+		}
+	}
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  char buf[256] = {0};
+  char time_string[32] = {0};
+  uint8_t device_id[5] = {0};
 
 
-#define CHECK_SIZE 8192
+  while(GT911_Read_ID(device_id, 4)!=HAL_OK){
+	  char i2c_error_buf[256] = {0};
+	  sprintf(i2c_error_buf, "Error reading ID: code %lX, state: %lX, mode: %lX", (uint32_t)HAL_I2C_GetError(&hi2c1),  (uint32_t)HAL_I2C_GetState(&hi2c1),  (uint32_t)HAL_I2C_GetMode(&hi2c1));
+	  TFT_String(framebuffer, 20,10, i2c_error_buf, 0xFFFF0000, 0x0);
+  }
 
-//  char check_buf[CHECK_SIZE+1] = {0};
-  char utoa_buf[64] = {0};
-  volatile uint64_t sdram_buf_1[CHECK_SIZE] = {0};
-  volatile uint64_t sdram_buf_2[CHECK_SIZE] = {0};
 
-  volatile uint32_t sdram_test_start = 0xC0000000;
-  volatile uint32_t sdram_test_size = 15*1024*1024;
-  volatile uint64_t *sdram_test = (uint64_t *)sdram_test_start;
-  TFT_fill(framebuffer, 0xFF7F7F7F);
+  sprintf(buf, "Device ID: %s", device_id);
+  TFT_String(framebuffer, 20,30, buf, 0xFFFFFFFF, 0x0);
+  uint32_t fg = 0;
+  uint32_t bg = 0;
+
+  uint64_t last_clean = 0;
 
   while (1)
   {
-	  uint64_t bytes_read = 0;
-	  uint64_t false_reads = 0;
-
-	  while(bytes_read < 2000000000){
-		  for(uint32_t i =0; i<CHECK_SIZE; i++){
-			  HAL_RNG_GenerateRandomNumber(&hrng, (uint32_t *)(sdram_buf_1+i));
-		  }
-
-		  for(uint32_t i=0; i<CHECK_SIZE; i++){
-			  sdram_test[i] = sdram_buf_1[i];
-		  }
-
-		  for(uint32_t i=0; i<CHECK_SIZE; i++){
-			  sdram_buf_2[i] = sdram_test[i];
-		  }
-
-		  for(uint32_t i=0; i<CHECK_SIZE; i++){
-			  bytes_read++;
-			  if(sdram_buf_1[i] == sdram_buf_2[i]){
-			  }else{
-				  false_reads++;
-			  }
-		  }
-
-
-		  uint64_t false_rate = (false_reads*100)/bytes_read;
-		  char false_rate_str[256] = {0};
-
-		  sprintf(false_rate_str, "False rate: %lu : %lu of %lu", (uint32_t)false_rate, (uint32_t)false_reads, (uint32_t)bytes_read);
-
-		  utoa((uint32_t)sdram_test, utoa_buf, 16);
-		  TFT_String(framebuffer, 0, 0, utoa_buf, 0xFFFFFFFF, 0xFF000000);
-
-		  TFT_String(framebuffer, 0, 420, false_rate_str, 0xFF000000, 0xFFFFFFFF);
-
-		  sdram_test+=CHECK_SIZE;
-		  if ((uint32_t)(sdram_test_start+sdram_test_size) < (uint32_t)sdram_test){
-			  sdram_test = (uint64_t *)sdram_test_start;
-		  }
+	  if(HAL_GetTick() > last_clean+10000){
+			TFT_fill(framebuffer, 0xFFFFFFFF);
+			last_clean = HAL_GetTick();
 	  }
 
+	  sprintf(time_string, "Time: %10lu", HAL_GetTick());
+	  TFT_String(framebuffer, 20, 380, time_string, 0xFFFFFFFF, 0x0);
 
+	  GT911_CopyShadow();
+	  if(!gt911.Touch){
+		  sprintf(buf, "%-50s", "No touch");
+		  fg = 0xFFFFFFFF;
+	  }else{
+			status = gt911.status;
+			if (status == HAL_TIMEOUT) {
+				sprintf(buf, "%-50s", "Timeout reading coordinates");
+				fg = 0xFFFFFF00;
+			} else if (status != HAL_OK) {
+				sprintf(buf, "Error reading display coordinates: %X", status);
+				fg = 0xFFFF0000;
+			} else {
+				sprintf(buf, "%1d %-40s", gt911.TouchCount, "touches detected");
+				fg = 0xFF00FF00;
+
+				for (uint8_t i=0; i<gt911.TouchCount; i++){
+					GT911_TouchInfo touchInfo = gt911.Touches[i];
+					uint16_t x = touchInfo.point_x;
+					uint16_t y = touchInfo.point_y;
+					TFT_String(framebuffer, x, y, "X", 0xFFFFFFFF, 0x0);
+				}
+			}
+	  }
+	  TFT_String(framebuffer, 20,30,buf, fg, bg);
+	  HAL_Delay(16);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -215,8 +219,10 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.HSIState = RCC_HSI_DIV1;
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 2;
@@ -262,13 +268,13 @@ void SystemClock_Config(void)
   PeriphClkInitStruct.PLL3.PLL3N = 7;
   PeriphClkInitStruct.PLL3.PLL3P = 2;
   PeriphClkInitStruct.PLL3.PLL3Q = 2;
-  PeriphClkInitStruct.PLL3.PLL3R = 21;
+  PeriphClkInitStruct.PLL3.PLL3R = 14;
   PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_3;
   PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOWIDE;
   PeriphClkInitStruct.PLL3.PLL3FRACN = 0;
   PeriphClkInitStruct.FmcClockSelection = RCC_FMCCLKSOURCE_PLL2;
   PeriphClkInitStruct.RngClockSelection = RCC_RNGCLKSOURCE_PLL;
-  PeriphClkInitStruct.I2c123ClockSelection = RCC_I2C123CLKSOURCE_D2PCLK1;
+  PeriphClkInitStruct.I2c123ClockSelection = RCC_I2C123CLKSOURCE_HSI;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -276,6 +282,14 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+	if(GPIO_Pin==TOUCH_IRQ_Pin){
+		if(GT911_Scan(10) == HAL_ERROR){
+			GT911_Init();
+		}
+	}
+}
+
 /* USER CODE END 4 */
 
 /**

@@ -59,16 +59,22 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define DISP_RESET_Pin GPIO_PIN_13
-#define DISP_RESET_GPIO_Port GPIOC
+#define TOUCH_RESET_Pin GPIO_PIN_13
+#define TOUCH_RESET_GPIO_Port GPIOC
 #define TOUCH_IRQ_Pin GPIO_PIN_14
 #define TOUCH_IRQ_GPIO_Port GPIOC
+#define TOUCH_IRQ_EXTI_IRQn EXTI15_10_IRQn
 #define DISP_EN_Pin GPIO_PIN_15
 #define DISP_EN_GPIO_Port GPIOC
 #define DISP_PWM_Pin GPIO_PIN_4
 #define DISP_PWM_GPIO_Port GPIOB
+#define TOUCH_SCL_Pin GPIO_PIN_6
+#define TOUCH_SCL_GPIO_Port GPIOB
+#define TOUCH_SDA_Pin GPIO_PIN_7
+#define TOUCH_SDA_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
-
+struct tTftFramebuffer;
+void print_i2c_error(struct tTftFramebuffer framebuffer);
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
