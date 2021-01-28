@@ -30,7 +30,12 @@
 /* USER CODE BEGIN Includes */
 #include "tft.h"
 #include "gt911.h"
+
 #include <stdio.h>
+//#include "usbd_cdc_if.h"
+#include "lvgl.h"
+#include "lv_examples.h"
+#include "lv_examples/src/lv_demo_printer/lv_demo_printer.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -55,6 +60,7 @@
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+static void MPU_Config(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -63,6 +69,9 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN 0 */
 volatile uint32_t time = 0;
 volatile uint32_t period = 0;
+
+
+
 /* USER CODE END 0 */
 
 /**
@@ -72,8 +81,13 @@ volatile uint32_t period = 0;
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+	for(uint16_t i=0; i<0xFFF0; i++){
+		__NOP();
+	}
   /* USER CODE END 1 */
+
+  /* MPU Configuration--------------------------------------------------------*/
+  MPU_Config();
 
   /* Enable I-Cache---------------------------------------------------------*/
   SCB_EnableICache();
@@ -104,27 +118,27 @@ int main(void)
   MX_FMC_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-  HAL_StatusTypeDef status;
 
 	struct tTftFramebuffer framebuffer = TFT_init_framebuffer(&hltdc);
 
-	// Soft Boot-up
 	HAL_GPIO_WritePin(DISP_EN_GPIO_Port, DISP_EN_Pin, GPIO_PIN_RESET);
 	HAL_Delay(100);
 	HAL_GPIO_WritePin(DISP_EN_GPIO_Port, DISP_EN_Pin, GPIO_PIN_SET);
 	HAL_Delay(100);
 
-	TFT_fill(framebuffer, 0xFFFFFFFF);
+	TFT_fill(framebuffer, LV_COLOR_WHITE);
 
 	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
 	for (uint32_t i = 1023; i > 0; i--) {
 		TIM3->CCR1 = i;
-		HAL_Delay(2);
+		HAL_Delay(1);
 	}
 	TIM3->CCR1 = 0;
+	HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
+
 	if(GT911_Init()!=HAL_OK){
 		while(1){
-			TFT_String(framebuffer, 0, 0, "Touch init error", 0xFFFF0000, 0x0);
+			TFT_String(framebuffer, 100, 100, "Touch init error", LV_COLOR_RED, LV_COLOR_BLACK);
 		}
 	}
 
@@ -133,61 +147,82 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  char buf[256] = {0};
-  char time_string[32] = {0};
-  uint8_t device_id[5] = {0};
+  printf("Initializing lv ... ");
+  lv_init();
+  printf("Done\n");
+
+  printf("Initializing lv buffer ... ");
+  static lv_disp_buf_t disp_buf;
+  static lv_color_t dbbuf[LV_HOR_RES_MAX * LV_VER_RES_MAX / 100];                     /*Declare a buffer for 1/10 screen size*/
+  lv_disp_buf_init(&disp_buf, dbbuf, NULL, LV_HOR_RES_MAX * LV_VER_RES_MAX / 100);    /*Initialize the display buffer*/
+  printf("Done\n");
 
 
-  while(GT911_Read_ID(device_id, 4)!=HAL_OK){
-	  char i2c_error_buf[256] = {0};
-	  sprintf(i2c_error_buf, "Error reading ID: code %lX, state: %lX, mode: %lX", (uint32_t)HAL_I2C_GetError(&hi2c1),  (uint32_t)HAL_I2C_GetState(&hi2c1),  (uint32_t)HAL_I2C_GetMode(&hi2c1));
-	  TFT_String(framebuffer, 20,10, i2c_error_buf, 0xFFFF0000, 0x0);
+  printf("Creating display function ... ");
+  void my_disp_flush(lv_disp_drv_t * disp, const lv_area_t * area, lv_color_t * color_p)
+  {
+      int32_t x, y;
+      for(y = area->y1; y <= area->y2; y++) {
+          for(x = area->x1; x <= area->x2; x++) {
+              TFT_pixel(framebuffer, x, y, *color_p);  /* Put a pixel to the display.*/
+              color_p++;
+          }
+      }
+
+      lv_disp_flush_ready(disp);         /* Indicate you are ready with the flushing*/
   }
+  printf("Done\n");
+
+  printf("Initializing display driver ... ");
+  lv_disp_drv_t disp_drv;               /*Descriptor of a display driver*/
+  lv_disp_drv_init(&disp_drv);          /*Basic initialization*/
+  disp_drv.flush_cb = my_disp_flush;    /*Set your driver function*/
+  disp_drv.buffer = &disp_buf;          /*Assign the buffer to the display*/
+  lv_disp_drv_register(&disp_drv);      /*Finally register the driver*/
+  printf("Done\n");
 
 
-  sprintf(buf, "Device ID: %s", device_id);
-  TFT_String(framebuffer, 20,30, buf, 0xFFFFFFFF, 0x0);
-  uint32_t fg = 0;
-  uint32_t bg = 0;
+  printf("Creating touch function ... ");
+  bool my_touchpad_read(struct _lv_indev_drv_t * indev_drv, lv_indev_data_t * data)
+  {
+      data->state = gt911.TouchCount > 0 ? LV_INDEV_STATE_PR : LV_INDEV_STATE_REL;
 
-  uint64_t last_clean = 0;
+      if(data->state == LV_INDEV_STATE_PR){
+    	  data->point.x = gt911.Touches[0].point_x;
+    	  data->point.y = gt911.Touches[0].point_y;
+      }
 
+      return false; /*Return `false` because we are not buffering and no more data to read*/
+  }
+  printf("Done\n");
+
+
+  printf("Initializing touch driver ... ");
+  lv_indev_drv_t indev_drv;                  /*Descriptor of a input device driver*/
+  lv_indev_drv_init(&indev_drv);             /*Basic initialization*/
+  indev_drv.type = LV_INDEV_TYPE_POINTER;    /*Touch pad is a pointer-like device*/
+  indev_drv.read_cb = my_touchpad_read;      /*Set your driver function*/
+  lv_indev_drv_register(&indev_drv);         /*Finally register the driver*/
+  printf("Done\n");
+
+  lv_demo_widgets();
+//  uint32_t fg = 0;
+//  uint32_t bg = 0;
+
+	tColor colors[19] = { LV_COLOR_WHITE, LV_COLOR_SILVER, LV_COLOR_GRAY,
+			LV_COLOR_BLACK, LV_COLOR_RED, LV_COLOR_MAROON, LV_COLOR_YELLOW,
+			LV_COLOR_OLIVE, LV_COLOR_LIME, LV_COLOR_GREEN, LV_COLOR_CYAN,
+			LV_COLOR_AQUA, LV_COLOR_TEAL, LV_COLOR_BLUE, LV_COLOR_NAVY,
+			LV_COLOR_MAGENTA, LV_COLOR_PURPLE, LV_COLOR_ORANGE };
   while (1)
   {
-	  if(HAL_GetTick() > last_clean+10000){
-			TFT_fill(framebuffer, 0xFFFFFFFF);
-			last_clean = HAL_GetTick();
-	  }
-
-	  sprintf(time_string, "Time: %10lu", HAL_GetTick());
-	  TFT_String(framebuffer, 20, 380, time_string, 0xFFFFFFFF, 0x0);
-
-	  GT911_CopyShadow();
-	  if(!gt911.Touch){
-		  sprintf(buf, "%-50s", "No touch");
-		  fg = 0xFFFFFFFF;
-	  }else{
-			status = gt911.status;
-			if (status == HAL_TIMEOUT) {
-				sprintf(buf, "%-50s", "Timeout reading coordinates");
-				fg = 0xFFFFFF00;
-			} else if (status != HAL_OK) {
-				sprintf(buf, "Error reading display coordinates: %X", status);
-				fg = 0xFFFF0000;
-			} else {
-				sprintf(buf, "%1d %-40s", gt911.TouchCount, "touches detected");
-				fg = 0xFF00FF00;
-
-				for (uint8_t i=0; i<gt911.TouchCount; i++){
-					GT911_TouchInfo touchInfo = gt911.Touches[i];
-					uint16_t x = touchInfo.point_x;
-					uint16_t y = touchInfo.point_y;
-					TFT_String(framebuffer, x, y, "X", 0xFFFFFFFF, 0x0);
-				}
-			}
-	  }
-	  TFT_String(framebuffer, 20,30,buf, fg, bg);
-	  HAL_Delay(16);
+	  uint32_t run_after = lv_task_handler();
+	  HAL_Delay(run_after);
+//	  for(uint8_t i=0; i<19; i++){
+//		  TFT_fill(framebuffer, LV_COLOR_GRAY);
+//		  TFT_String(framebuffer, 100,100,"Hello, world", LV_COLOR_WHITE, LV_COLOR_BLACK);
+//		  HAL_Delay(100000);
+//	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -256,19 +291,19 @@ void SystemClock_Config(void)
   }
   PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_LTDC|RCC_PERIPHCLK_RNG
                               |RCC_PERIPHCLK_I2C1|RCC_PERIPHCLK_FMC;
-  PeriphClkInitStruct.PLL2.PLL2M = 2;
-  PeriphClkInitStruct.PLL2.PLL2N = 55;
+  PeriphClkInitStruct.PLL2.PLL2M = 3;
+  PeriphClkInitStruct.PLL2.PLL2N = 60;
   PeriphClkInitStruct.PLL2.PLL2P = 2;
   PeriphClkInitStruct.PLL2.PLL2Q = 2;
-  PeriphClkInitStruct.PLL2.PLL2R = 4;
+  PeriphClkInitStruct.PLL2.PLL2R = 3;
   PeriphClkInitStruct.PLL2.PLL2RGE = RCC_PLL2VCIRANGE_3;
   PeriphClkInitStruct.PLL2.PLL2VCOSEL = RCC_PLL2VCOWIDE;
   PeriphClkInitStruct.PLL2.PLL2FRACN = 0;
-  PeriphClkInitStruct.PLL3.PLL3M = 1;
-  PeriphClkInitStruct.PLL3.PLL3N = 7;
+  PeriphClkInitStruct.PLL3.PLL3M = 3;
+  PeriphClkInitStruct.PLL3.PLL3N = 20;
   PeriphClkInitStruct.PLL3.PLL3P = 2;
   PeriphClkInitStruct.PLL3.PLL3Q = 2;
-  PeriphClkInitStruct.PLL3.PLL3R = 14;
+  PeriphClkInitStruct.PLL3.PLL3R = 10;
   PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_3;
   PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOWIDE;
   PeriphClkInitStruct.PLL3.PLL3FRACN = 0;
@@ -286,11 +321,56 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	if(GPIO_Pin==TOUCH_IRQ_Pin){
 		if(GT911_Scan(10) == HAL_ERROR){
 			GT911_Init();
+			return;
 		}
+		GT911_CopyShadow();
 	}
 }
 
 /* USER CODE END 4 */
+
+/* MPU Configuration */
+
+void MPU_Config(void)
+{
+  MPU_Region_InitTypeDef MPU_InitStruct = {0};
+
+  /* Disables the MPU */
+  HAL_MPU_Disable();
+  /** Initializes and configures the Region and the memory to be protected
+  */
+  MPU_InitStruct.Enable = MPU_REGION_ENABLE;
+  MPU_InitStruct.Number = MPU_REGION_NUMBER0;
+  MPU_InitStruct.BaseAddress = 0x60000000;
+  MPU_InitStruct.Size = MPU_REGION_SIZE_16MB;
+  MPU_InitStruct.SubRegionDisable = 0x0;
+  MPU_InitStruct.TypeExtField = MPU_TEX_LEVEL0;
+  MPU_InitStruct.AccessPermission = MPU_REGION_FULL_ACCESS;
+  MPU_InitStruct.DisableExec = MPU_INSTRUCTION_ACCESS_DISABLE;
+  MPU_InitStruct.IsShareable = MPU_ACCESS_SHAREABLE;
+  MPU_InitStruct.IsCacheable = MPU_ACCESS_NOT_CACHEABLE;
+  MPU_InitStruct.IsBufferable = MPU_ACCESS_NOT_BUFFERABLE;
+
+  HAL_MPU_ConfigRegion(&MPU_InitStruct);
+  /** Initializes and configures the Region and the memory to be protected
+  */
+  MPU_InitStruct.Enable = MPU_REGION_ENABLE;
+  MPU_InitStruct.Number = MPU_REGION_NUMBER1;
+  MPU_InitStruct.BaseAddress = 0x30000000;
+  MPU_InitStruct.Size = MPU_REGION_SIZE_128KB;
+  MPU_InitStruct.SubRegionDisable = 0x0;
+  MPU_InitStruct.TypeExtField = MPU_TEX_LEVEL0;
+  MPU_InitStruct.AccessPermission = MPU_REGION_FULL_ACCESS;
+  MPU_InitStruct.DisableExec = MPU_INSTRUCTION_ACCESS_DISABLE;
+  MPU_InitStruct.IsShareable = MPU_ACCESS_NOT_SHAREABLE;
+  MPU_InitStruct.IsCacheable = MPU_ACCESS_CACHEABLE;
+  MPU_InitStruct.IsBufferable = MPU_ACCESS_NOT_BUFFERABLE;
+
+  HAL_MPU_ConfigRegion(&MPU_InitStruct);
+  /* Enables the MPU */
+  HAL_MPU_Enable(MPU_PRIVILEGED_DEFAULT);
+
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.

@@ -55,10 +55,10 @@ void MX_FMC_Init(void)
   hsdram1.Init.ReadPipeDelay = FMC_SDRAM_RPIPE_DELAY_0;
   /* SdramTiming */
   SdramTiming.LoadToActiveDelay = 2;
-  SdramTiming.ExitSelfRefreshDelay = 9;
-  SdramTiming.SelfRefreshTime = 8;
-  SdramTiming.RowCycleDelay = 8;
-  SdramTiming.WriteRecoveryTime = 6;
+  SdramTiming.ExitSelfRefreshDelay = 8;
+  SdramTiming.SelfRefreshTime = 5;
+  SdramTiming.RowCycleDelay = 6;
+  SdramTiming.WriteRecoveryTime = 3;
   SdramTiming.RPDelay = 2;
   SdramTiming.RCDDelay = 2;
 
@@ -66,6 +66,8 @@ void MX_FMC_Init(void)
   {
     Error_Handler( );
   }
+
+  HAL_SetFMCMemorySwappingConfig(FMC_SWAPBMAP_SDRAM_SRAM);
 
   /* USER CODE BEGIN FMC_Init 2 */
   IS42S81600F_7TL_Init(&hsdram1);

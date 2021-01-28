@@ -1,22 +1,18 @@
 #include "tft.h"
 
-//volatile tColor _FrameBuffer_[400*240] = {0};
-
-//volatile tColor *FrameBuffer = _FrameBuffer_;
-
-volatile tColor *FrameBuffer = (tColor*)0xC0000000;
+static volatile tColor *FrameBuffer = (tColor*)0x60000000;
 
 struct tTftFramebuffer TFT_init_framebuffer(LTDC_HandleTypeDef *hltdc) {
 	HAL_LTDC_SetAddress(hltdc, (uint32_t) FrameBuffer, 0);
-	return (struct tTftFramebuffer ) { (tColor*) FrameBuffer, 792, 472, &Font12 } ;
+	return (struct tTftFramebuffer ) { (tColor*) FrameBuffer, 800, 480, &Font12 } ;
 }
 
-void TFT_pixel(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, uint32_t color) {
-	buffer.buffer[y * buffer.width + x] = color_hex(color);
+void TFT_pixel(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, tColor color) {
+	buffer.buffer[y * buffer.width + x] = color;
 }
 
-void TFT_fill(struct tTftFramebuffer buffer, uint32_t color) {
-	tColor innerColor = color_hex(color);
+void TFT_fill(struct tTftFramebuffer buffer, tColor color) {
+	tColor innerColor = (tColor)color;
 	uint32_t bufferLength = buffer.width*buffer.height;
 	for (int i = 0; i < bufferLength; i++) {
 		buffer.buffer[i] = innerColor;
@@ -24,16 +20,15 @@ void TFT_fill(struct tTftFramebuffer buffer, uint32_t color) {
 }
 
 void TFT_fill_rectangle(struct tTftFramebuffer buffer, uint16_t x0,
-		uint16_t x1, uint16_t y0, uint16_t y1, uint32_t color) {
-	tColor innerColor = color_hex(color);
+		uint16_t x1, uint16_t y0, uint16_t y1, tColor color) {
 	for (uint16_t x = x0; x < x1; x++) {
 		for (uint16_t y = y0; y < y1; y++) {
-			buffer.buffer[y * buffer.width + x] = innerColor;
+			buffer.buffer[y * buffer.width + x] = color;
 		}
 	}
 }
 
-void TFT_Char(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, char c, uint32_t color, uint32_t background) {
+void TFT_Char(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, char c, tColor color, tColor background) {
 	uint16_t fontWidth = buffer.font->Width;
 	uint16_t fontHeight = buffer.font->Height;
 	const uint8_t *fontTable = buffer.font->table;
@@ -58,9 +53,9 @@ void TFT_Char(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, char c, uin
 		}
 		for (uint16_t j = 0; j < fontWidth; j++) {
 			if (line & (1 << (fontWidth - j + offset - 1))) {
-				TFT_pixel(buffer, (x + j), y, color);
+				TFT_pixel(buffer, (x + j), y, (tColor)color);
 			} else {
-				TFT_pixel(buffer, (x + j), y, background);
+				TFT_pixel(buffer, (x + j), y,  (tColor)background);
 			}
 		}
 		y++;
@@ -68,7 +63,7 @@ void TFT_Char(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, char c, uin
 }
 
 
-void TFT_String(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, const char* str, uint32_t color, uint32_t background){
+void TFT_String(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, const char* str, tColor color, tColor background){
 	uint16_t currentX = x;
 	uint16_t currentY = y;
 	for(const char* current_char = str; *current_char; current_char++){
@@ -81,17 +76,4 @@ void TFT_String(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, const cha
 			currentY+=buffer.font->Height;
 		}
 	}
-}
-
-
-tColor color_rgb(uint8_t r, uint8_t g, uint8_t b) {
-	return ((tColor) ((r >> 3) & 0x1F)) << (6 + 5)
-			| ((tColor) ((g >> 2) & 0x3F)) << (5)
-			| ((tColor) ((b >> 3) & 0x1F));
-}
-
-tColor color_hex(uint32_t argb) {
-	return argb;
-//	return color_rgb((argb & 0xFF0000) >> 16, (argb & 0xFF00) >> 8,
-//			argb & 0xFF);
 }
