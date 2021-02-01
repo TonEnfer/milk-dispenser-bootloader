@@ -59,6 +59,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define PUMP_EN_Pin GPIO_PIN_2
+#define PUMP_EN_GPIO_Port GPIOE
 #define TOUCH_RESET_Pin GPIO_PIN_13
 #define TOUCH_RESET_GPIO_Port GPIOC
 #define TOUCH_IRQ_Pin GPIO_PIN_14
@@ -66,6 +68,8 @@ void Error_Handler(void);
 #define TOUCH_IRQ_EXTI_IRQn EXTI15_10_IRQn
 #define DISP_EN_Pin GPIO_PIN_15
 #define DISP_EN_GPIO_Port GPIOC
+#define CP_PWM_Pin GPIO_PIN_8
+#define CP_PWM_GPIO_Port GPIOA
 #define DISP_PWM_Pin GPIO_PIN_4
 #define DISP_PWM_GPIO_Port GPIOB
 #define TOUCH_SCL_Pin GPIO_PIN_6
