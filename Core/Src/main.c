@@ -19,11 +19,14 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "crc.h"
+#include "fatfs.h"
 #include "i2c.h"
 #include "ltdc.h"
 #include "quadspi.h"
 #include "rng.h"
 #include "tim.h"
+#include "usb_device.h"
 #include "gpio.h"
 #include "fmc.h"
 
@@ -34,6 +37,7 @@
 #include "pump.h"
 #include "pump_power.h"
 #include "ext_flash.h"
+#include "interface.h"
 
 #include <stdio.h>
 //#include "lvgl.h"
@@ -116,11 +120,14 @@ int main(void)
   MX_I2C1_Init();
   MX_TIM1_Init();
   MX_QUADSPI_Init();
+  MX_CRC_Init();
+  MX_FATFS_Init();
+  MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
-  SST26_config.hqspi = &hqspi;
-  SST26_config.timeout = 100;
+	SST26_config.hqspi = &hqspi;
+	SST26_config.timeout = 100;
 
-  SST26_init();
+	SST26_init();
 
 	pump_config.port = PUMP_EN_GPIO_Port;
 	pump_config.pin = PUMP_EN_Pin;
@@ -140,7 +147,7 @@ int main(void)
 	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
 	for (uint32_t i = 1023; i > 0; i--) {
 		TIM3->CCR1 = i;
-		HAL_Delay(1);
+		HAL_Delay(0);
 	}
 	TIM3->CCR1 = 0;
 	HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
@@ -214,7 +221,7 @@ int main(void)
 	lv_indev_drv_register(&indev_drv); /*Finally register the driver*/
 	printf("Done\n");
 
-	lv_demo_widgets();
+	create_interface();
 
 //	tColor colors[19] = { LV_COLOR_WHITE, LV_COLOR_SILVER, LV_COLOR_GRAY,
 //	LV_COLOR_BLACK, LV_COLOR_RED, LV_COLOR_MAROON, LV_COLOR_YELLOW,
@@ -260,10 +267,12 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_HSI
+                              |RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_DIV1;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 2;
@@ -296,8 +305,8 @@ void SystemClock_Config(void)
     Error_Handler();
   }
   PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_LTDC|RCC_PERIPHCLK_RNG
-                              |RCC_PERIPHCLK_I2C1|RCC_PERIPHCLK_QSPI
-                              |RCC_PERIPHCLK_FMC;
+                              |RCC_PERIPHCLK_I2C1|RCC_PERIPHCLK_USB
+                              |RCC_PERIPHCLK_QSPI|RCC_PERIPHCLK_FMC;
   PeriphClkInitStruct.PLL2.PLL2M = 3;
   PeriphClkInitStruct.PLL2.PLL2N = 60;
   PeriphClkInitStruct.PLL2.PLL2P = 2;
@@ -318,10 +327,14 @@ void SystemClock_Config(void)
   PeriphClkInitStruct.QspiClockSelection = RCC_QSPICLKSOURCE_D1HCLK;
   PeriphClkInitStruct.RngClockSelection = RCC_RNGCLKSOURCE_PLL;
   PeriphClkInitStruct.I2c123ClockSelection = RCC_I2C123CLKSOURCE_HSI;
+  PeriphClkInitStruct.UsbClockSelection = RCC_USBCLKSOURCE_HSI48;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
   {
     Error_Handler();
   }
+  /** Enable USB Voltage detector
+  */
+  HAL_PWREx_EnableUSBVoltageDetector();
 }
 
 /* USER CODE BEGIN 4 */

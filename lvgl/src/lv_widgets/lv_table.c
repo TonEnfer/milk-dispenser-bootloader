@@ -53,8 +53,8 @@ static lv_design_cb_t ancestor_design;
 /**
  * Create a table object
  * @param par pointer to an object, it will be the parent of the new table
- * @param copy pointer to a table object, if not NULL then the new object will be copied from it
  * @return pointer to the created table
+ * @param copy pointer to a table object, if not NULL then the new object will be copied from it
  */
 lv_obj_t * lv_table_create(lv_obj_t * par, const lv_obj_t * copy)
 {
