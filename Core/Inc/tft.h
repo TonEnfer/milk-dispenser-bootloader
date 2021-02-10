@@ -12,7 +12,7 @@
 
 #include "fonts.h"
 
-typedef uint32_t tColor;
+typedef uint16_t tColor;
 
 struct tTftFramebuffer{
 	tColor *buffer;
@@ -22,11 +22,12 @@ struct tTftFramebuffer{
 	sFONT *font;
 };
 
+#define c565(R,G,B) ((tColor)( ((R&0Xf8)<<8)|((G&0xFC)<<3)|((B&0xF8)>>3) ))
 
-#define TFT_COLOR_WHITE ((tColor)0xFFFFFFFF)
-#define TFT_COLOR_RED ((tColor)0xFF0000FF)
-#define TFT_COLOR_BLACK ((tColor)0x000000FF)
-#define TFT_COLOR_GRAY ((tColor)0x7F7F7FFF)
+#define TFT_COLOR_WHITE c565(255,255,255)
+#define TFT_COLOR_RED c565(255,0,0)
+#define TFT_COLOR_BLACK c565(0,0,0)
+#define TFT_COLOR_GRAY c565(127,127,127)
 
 
 struct tTftFramebuffer TFT_init_framebuffer(LTDC_HandleTypeDef *hltdc);

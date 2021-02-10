@@ -155,6 +155,7 @@ int main(void)
 			TFT_String(framebuffer, 100, 100, "Touch init error", TFT_COLOR_RED, TFT_COLOR_BLACK);
 		}
 	}
+	int sprintf_number = sprintf(NULL, "Hello, world! %d", 12346);
 
   /* USER CODE END 2 */
 
