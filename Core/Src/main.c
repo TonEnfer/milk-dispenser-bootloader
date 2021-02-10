@@ -37,11 +37,9 @@
 #include "pump.h"
 #include "pump_power.h"
 #include "ext_flash.h"
-#include "interface.h"
 
 #include <stdio.h>
-//#include "lvgl.h"
-//#include "lv_examples.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -142,7 +140,7 @@ int main(void)
 	HAL_GPIO_WritePin(DISP_EN_GPIO_Port, DISP_EN_Pin, GPIO_PIN_SET);
 	HAL_Delay(100);
 
-	TFT_fill(framebuffer, LV_COLOR_WHITE);
+	TFT_fill(framebuffer, TFT_COLOR_WHITE);
 
 	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
 	for (uint32_t i = 1023; i > 0; i--) {
@@ -154,8 +152,7 @@ int main(void)
 
 	if (GT911_Init() != HAL_OK) {
 		while (1) {
-			TFT_String(framebuffer, 100, 100, "Touch init error", LV_COLOR_RED,
-			LV_COLOR_BLACK);
+			TFT_String(framebuffer, 100, 100, "Touch init error", TFT_COLOR_RED, TFT_COLOR_BLACK);
 		}
 	}
 
@@ -163,79 +160,14 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-	printf("Initializing lv ... ");
-	lv_init();
-	printf("Done\n");
-
-	printf("Initializing lv buffer ... ");
-	static lv_disp_buf_t disp_buf;
-	static lv_color_t dbbuf[LV_HOR_RES_MAX * LV_VER_RES_MAX / 100]; /*Declare a buffer for 1/10 screen size*/
-	lv_disp_buf_init(&disp_buf, dbbuf, NULL,
-	LV_HOR_RES_MAX * LV_VER_RES_MAX / 100); /*Initialize the display buffer*/
-	printf("Done\n");
-
-	printf("Creating display function ... ");
-	void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area,
-			lv_color_t *color_p) {
-		int32_t x;
-		int32_t y;
-		for (y = area->y1; y <= area->y2; y++) {
-			for (x = area->x1; x <= area->x2; x++) {
-				TFT_pixel(framebuffer, x, y, *color_p); /* Put a pixel to the display.*/
-				color_p++;
-			}
-		}
-
-		lv_disp_flush_ready(disp); /* Indicate you are ready with the flushing*/
-	}
-	printf("Done\n");
-
-	printf("Initializing display driver ... ");
-	lv_disp_drv_t disp_drv; /*Descriptor of a display driver*/
-	lv_disp_drv_init(&disp_drv); /*Basic initialization*/
-	disp_drv.flush_cb = my_disp_flush; /*Set your driver function*/
-	disp_drv.buffer = &disp_buf; /*Assign the buffer to the display*/
-	lv_disp_drv_register(&disp_drv); /*Finally register the driver*/
-	printf("Done\n");
-
-	printf("Creating touch function ... ");
-	bool my_touchpad_read(struct _lv_indev_drv_t *indev_drv,
-			lv_indev_data_t *data) {
-		data->state =
-				gt911.TouchCount > 0 ? LV_INDEV_STATE_PR : LV_INDEV_STATE_REL;
-
-		if (data->state == LV_INDEV_STATE_PR) {
-			data->point.x = gt911.Touches[0].point_x;
-			data->point.y = gt911.Touches[0].point_y;
-		}
-
-		return (false); /*Return `false` because we are not buffering and no more data to read*/
-	}
-	printf("Done\n");
-
-	printf("Initializing touch driver ... ");
-	lv_indev_drv_t indev_drv; /*Descriptor of a input device driver*/
-	lv_indev_drv_init(&indev_drv); /*Basic initialization*/
-	indev_drv.type = LV_INDEV_TYPE_POINTER; /*Touch pad is a pointer-like device*/
-	indev_drv.read_cb = my_touchpad_read; /*Set your driver function*/
-	lv_indev_drv_register(&indev_drv); /*Finally register the driver*/
-	printf("Done\n");
-
-	create_interface();
-
-//	tColor colors[19] = { LV_COLOR_WHITE, LV_COLOR_SILVER, LV_COLOR_GRAY,
-//	LV_COLOR_BLACK, LV_COLOR_RED, LV_COLOR_MAROON, LV_COLOR_YELLOW,
-//	LV_COLOR_OLIVE, LV_COLOR_LIME, LV_COLOR_GREEN, LV_COLOR_CYAN,
-//	LV_COLOR_AQUA, LV_COLOR_TEAL, LV_COLOR_BLUE, LV_COLOR_NAVY,
-//	LV_COLOR_MAGENTA, LV_COLOR_PURPLE, LV_COLOR_ORANGE };
 	while (1) {
-		uint32_t run_after = lv_task_handler();
-		HAL_Delay(run_after);
-//	  for(uint8_t i=0; i<19; i++){
-//		  TFT_fill(framebuffer, LV_COLOR_GRAY);
-//		  TFT_String(framebuffer, 100,100,"Hello, world", LV_COLOR_WHITE, LV_COLOR_BLACK);
-//		  HAL_Delay(100000);
-//	  }
+		HAL_Delay(1000);
+		printf("Hello, world!");
+	  for(uint8_t i=0; i<19; i++){
+		  TFT_fill(framebuffer, TFT_COLOR_GRAY);
+		  TFT_String(framebuffer, 100,100,"Hello, world", TFT_COLOR_WHITE, TFT_COLOR_BLACK);
+		  HAL_Delay(100000);
+	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

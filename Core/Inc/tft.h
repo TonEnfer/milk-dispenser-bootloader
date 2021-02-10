@@ -11,9 +11,8 @@
 #include "stm32h7xx_hal.h"
 
 #include "fonts.h"
-#include "lvgl.h"
 
-typedef lv_color_t tColor;
+typedef uint32_t tColor;
 
 struct tTftFramebuffer{
 	tColor *buffer;
@@ -22,6 +21,12 @@ struct tTftFramebuffer{
 
 	sFONT *font;
 };
+
+
+#define TFT_COLOR_WHITE ((tColor)0xFFFFFFFF)
+#define TFT_COLOR_RED ((tColor)0xFF0000FF)
+#define TFT_COLOR_BLACK ((tColor)0x000000FF)
+#define TFT_COLOR_GRAY ((tColor)0x7F7F7FFF)
 
 
 struct tTftFramebuffer TFT_init_framebuffer(LTDC_HandleTypeDef *hltdc);
