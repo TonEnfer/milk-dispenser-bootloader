@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include "i2c.h"
+#include "log.h"
 #define PRIMITIVE_TIMEOUT 1000
 
 volatile struct GT911 gt911;
@@ -59,6 +60,7 @@ static HAL_StatusTypeDef GT911_WR_Reg(uint16_t reg, uint8_t *buf, uint8_t len){
 HAL_StatusTypeDef GT911_RD_Reg(uint16_t reg, uint8_t *buf, uint8_t len){
 	HAL_StatusTypeDef status = GT911_WR_Reg(reg, buf, 0);
 	if(status!=HAL_OK){
+		log_debug("GT911_RD_Reg failed. Status: %d, I2C: %d", status, HAL_I2C_GetState(&hi2c1));
 		return status;
 	}
 	return HAL_I2C_Master_Receive(&hi2c1, GT911_CMD_WR_ADDR, buf, len, PRIMITIVE_TIMEOUT);
@@ -93,10 +95,12 @@ static HAL_StatusTypeDef GT911_Scan_Impl(uint32_t timeout){
 	uint8_t ready_reg = 0x7F;
 	while(1){
 		if(HAL_GetTick() - time_start > timeout){
+			log_debug("I2C timeout\n");
 			return HAL_TIMEOUT;
 		}
 		status = GT911_Ready_Reg(&ready_reg);
 		if(status!=HAL_OK){
+			log_debug("Cannot read ready reg\n");
 			return status;
 		}
 		if (ready_reg & GT911_READY_REG_BUFFER_STATUS){
@@ -107,6 +111,7 @@ static HAL_StatusTypeDef GT911_Scan_Impl(uint32_t timeout){
 
 	const uint8_t touch_points = ready_reg & GT911_READY_REG_NUMBER_OF_TOUCH_POINTS;
 	if(touch_points > GT911_MAX_TOUCH){
+		log_debug("Too many touches: %d\n", touch_points);
 		return HAL_ERROR;
 	}
 
@@ -143,9 +148,11 @@ static HAL_StatusTypeDef GT911_Scan_Impl(uint32_t timeout){
 }
 
 HAL_StatusTypeDef GT911_Scan(uint32_t timeout){
+	log_debug(">GT911_Scan\n");
 	shadow.Touch = 1;
 	HAL_StatusTypeDef status = GT911_Scan_Impl(timeout);
 	shadow.status = status;
+	log_debug("<GT911_Scan: %d (%d)\n", status, shadow.TouchCount);
 	return status;
 }
 
@@ -158,8 +165,9 @@ void GT911_CopyShadow(){
 
 HAL_StatusTypeDef GT911_Init()
 {
-	printf("GT911_Init\r\n");
+	log_debug(">GT911_Init\n");
 	GT911_Reset();
+	log_debug("<GT911_Init\n");
 	return HAL_OK;
 }
 

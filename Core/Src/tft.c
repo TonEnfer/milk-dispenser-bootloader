@@ -29,6 +29,10 @@ void TFT_fill_rectangle(struct tTftFramebuffer buffer, uint16_t x0,
 }
 
 void TFT_Char(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, char c, tColor color, tColor background) {
+	if (c < ' '){
+		c = ' ';
+	}
+
 	uint16_t fontWidth = buffer.font->Width;
 	uint16_t fontHeight = buffer.font->Height;
 	const uint8_t *fontTable = buffer.font->table;
@@ -76,4 +80,15 @@ void TFT_String(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, const cha
 			currentY+=buffer.font->Height;
 		}
 	}
+}
+
+
+void TFT_Set_brightness(uint16_t brightness){
+	// param brightness: 0-256. 0 = dark, 256 - max brightness
+	if (brightness > 256){
+		brightness = 256;
+	}
+
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+	TIM3->CCR1 = (256-brightness)*4;
 }

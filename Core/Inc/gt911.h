@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 #include <stm32h7xx.h>
-
+#include <stdbool.h>
 
 #define GT911_MAX_WIDTH		1024    	//Touchscreen pad max width
 #define GT911_MAX_HEIGHT		600			//Touchscreen pad max height
@@ -44,11 +44,6 @@ typedef __PACKED_STRUCT  {
 } GT911_TouchInfo;
 #pragma pack()
 
-
-struct GT911_Init{
-
-};
-
 struct GT911
 {
 	GT911_TouchInfo Touches[GT911_MAX_TOUCH];
@@ -58,9 +53,9 @@ struct GT911
 
 	uint8_t TouchpointFlag;
 	uint8_t TouchCount;
-
 };
 
+bool gt911_irq;
 extern volatile struct GT911 gt911;
 
 HAL_StatusTypeDef GT911_Init();

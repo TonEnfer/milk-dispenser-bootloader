@@ -33,6 +33,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "tft.h"
+#include "terminal.h"
+#include "log.h"
 #include "gt911.h"
 #include "pump.h"
 #include "pump_power.h"
@@ -131,44 +133,60 @@ int main(void)
 	pump_config.pin = PUMP_EN_Pin;
 	pump_init();
 
-	pump_power_init();
-
 	struct tTftFramebuffer framebuffer = TFT_init_framebuffer(&hltdc);
+	terminal_init(&framebuffer);
+
+	pump_power_config.timer = &htim1;
+	pump_power_config.channel = TIM_CHANNEL_1;
+	pump_power_init();
+	TFT_Set_brightness(256);
 
 	HAL_GPIO_WritePin(DISP_EN_GPIO_Port, DISP_EN_Pin, GPIO_PIN_RESET);
 	HAL_Delay(100);
 	HAL_GPIO_WritePin(DISP_EN_GPIO_Port, DISP_EN_Pin, GPIO_PIN_SET);
 	HAL_Delay(100);
 
-	TFT_fill(framebuffer, TFT_COLOR_WHITE);
+	printf("Hello, world!\n");
 
-	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
-	for (uint32_t i = 1023; i > 0; i--) {
-		TIM3->CCR1 = i;
-		HAL_Delay(0);
-	}
-	TIM3->CCR1 = 0;
-	HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
+	log_debug("Debug log");
+	log_info("Info log");
+	log_warn("Warn log");
+	log_error("Error log");
 
+	gt911_irq = false;
 	if (GT911_Init() != HAL_OK) {
-		while (1) {
-			TFT_String(framebuffer, 100, 100, "Touch init error", TFT_COLOR_RED, TFT_COLOR_BLACK);
-		}
+		printf("Touch init error. Reset the device\n");
+		while (1)
+			;
 	}
-	int sprintf_number = sprintf(NULL, "Hello, world! %d", 12346);
+	HAL_Delay(100);
+	gt911_irq = true;
+
+	log_info("Touch the screen within 10 seconds to activate bootloader");
+	uint32_t timeout_at = HAL_GetTick() + 10000;
+	while (HAL_GetTick() < timeout_at) {
+		log_info("%ld  ", (timeout_at - HAL_GetTick()) / 1000);
+		if (gt911.TouchCount > 0) {
+			log_info("Activating bootloader in 5 seconds");
+			HAL_Delay(5000);
+			while (1)
+				;
+		}
+		HAL_Delay(1000);
+	}
+	log_info("Bootloader was not activated. "
+			"Running main application in 5 seconds");
+	HAL_Delay(5000);
+	while (1)
+		;
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 	while (1) {
-		HAL_Delay(1000);
-		printf("Hello, world!");
-	  for(uint8_t i=0; i<19; i++){
-		  TFT_fill(framebuffer, TFT_COLOR_GRAY);
-		  TFT_String(framebuffer, 100,100,"Hello, world", TFT_COLOR_WHITE, TFT_COLOR_BLACK);
-		  HAL_Delay(100000);
-	  }
+		HAL_Delay(10000);
+		printf("[%8ld] Hello, world!\n", HAL_GetTick());
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -273,11 +291,13 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 	if (GPIO_Pin == TOUCH_IRQ_Pin) {
-		if (GT911_Scan(10) == HAL_ERROR) {
-			GT911_Init();
-			return;
+		if (gt911_irq) {
+			if (GT911_Scan(10) == HAL_ERROR) {
+				GT911_Init();
+				return;
+			}
+			GT911_CopyShadow();
 		}
-		GT911_CopyShadow();
 	}
 }
 
@@ -351,8 +371,9 @@ void Error_Handler(void)
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+	/* User can add his own implementation to report the file name and line number,
+	 ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+	log_error("Wrong parameters value: file %s on line %d\r\n", file, line);
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
