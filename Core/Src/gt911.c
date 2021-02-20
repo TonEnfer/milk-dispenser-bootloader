@@ -47,17 +47,17 @@ static void GT911_Reset()
 }
 
 
-static HAL_StatusTypeDef GT911_WR_Reg(uint16_t reg, uint8_t *buf, uint8_t len){
+static HAL_StatusTypeDef GT911_WR_Reg(uint16_t reg, uint8_t *buf, uint16_t len){
 	uint8_t buf_with_reg[len+2];
-	buf_with_reg[0] = (reg >> 8)&0xFF;
-	buf_with_reg[1] = reg&0xFF;
+	buf_with_reg[0] = (uint8_t)((reg >> 8)&0xFF);
+	buf_with_reg[1] = (uint8_t)(reg&0xFF);
 	for(uint8_t i=0; i<len; i++){
 		buf_with_reg[i+2] = buf[i];
 	}
-	return HAL_I2C_Master_Transmit(&hi2c1, GT911_CMD_WR_ADDR, buf_with_reg, len+2, PRIMITIVE_TIMEOUT);
+	return HAL_I2C_Master_Transmit(&hi2c1, GT911_CMD_WR_ADDR, buf_with_reg, (uint16_t)(len+2), PRIMITIVE_TIMEOUT);
 }
 
-HAL_StatusTypeDef GT911_RD_Reg(uint16_t reg, uint8_t *buf, uint8_t len){
+HAL_StatusTypeDef GT911_RD_Reg(uint16_t reg, uint8_t *buf, uint16_t len){
 	HAL_StatusTypeDef status = GT911_WR_Reg(reg, buf, 0);
 	if(status!=HAL_OK){
 		log_debug("GT911_RD_Reg failed. Status: %d, I2C: %d", status, HAL_I2C_GetState(&hi2c1));
@@ -66,7 +66,7 @@ HAL_StatusTypeDef GT911_RD_Reg(uint16_t reg, uint8_t *buf, uint8_t len){
 	return HAL_I2C_Master_Receive(&hi2c1, GT911_CMD_WR_ADDR, buf, len, PRIMITIVE_TIMEOUT);
 }
 
-HAL_StatusTypeDef GT911_Read_ID(uint8_t* buf, size_t len){
+HAL_StatusTypeDef GT911_Read_ID(uint8_t* buf, uint16_t len){
 	if(GT911_RD_Reg(GT911_PRODUCT_ID_REG, buf, len)!=HAL_OK){
 		return HAL_ERROR;
 	}
@@ -123,13 +123,13 @@ static HAL_StatusTypeDef GT911_Scan_Impl(uint32_t timeout){
 		return status;
 	}
 
-	const uint16_t coordinates_buffer_size = touch_points * 8;
+	const uint16_t coordinates_buffer_size = (uint16_t)(touch_points * 8);
 	uint8_t coordinates_buffer[coordinates_buffer_size];
 	for(size_t i=0; i<coordinates_buffer_size; i++){
 		coordinates_buffer[i] = 0;
 	}
 
-	if(GT911_RD_Reg(GT911_COORDINATES_REG_START, coordinates_buffer, coordinates_buffer_size-2)!=HAL_OK){
+	if(GT911_RD_Reg(GT911_COORDINATES_REG_START, coordinates_buffer, (uint16_t)(coordinates_buffer_size-2))!=HAL_OK){
 		return HAL_ERROR;
 	}
 

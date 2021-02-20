@@ -13,8 +13,8 @@ void TFT_pixel(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, tColor col
 
 void TFT_fill(struct tTftFramebuffer buffer, tColor color) {
 	tColor innerColor = (tColor)color;
-	uint32_t bufferLength = buffer.width*buffer.height;
-	for (int i = 0; i < bufferLength; i++) {
+	uint32_t bufferLength = (uint32_t)(buffer.width*buffer.height);
+	for (uint32_t i = 0; i < bufferLength; i++) {
 		buffer.buffer[i] = innerColor;
 	}
 }
@@ -28,7 +28,7 @@ void TFT_fill_rectangle(struct tTftFramebuffer buffer, uint16_t x0,
 	}
 }
 
-void TFT_Char(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, char c, tColor color, tColor background) {
+void TFT_Char(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, int c, tColor color, tColor background) {
 	if (c < ' '){
 		c = ' ';
 	}
@@ -39,7 +39,7 @@ void TFT_Char(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, char c, tCo
 
 	const uint8_t *fontChar = fontTable + (c - ' ') * fontHeight * ((fontWidth + 7) / 8);
 
-	uint16_t offset = 8 * ((fontWidth + 7) / 8) - fontWidth;
+	uint16_t offset = (uint16_t)(8 * ((fontWidth + 7) / 8) - fontWidth);
 	uint64_t line;
 	for (uint16_t i = 0; i < fontHeight; i++) {
 		const uint8_t *pchar = fontChar + (fontWidth + 7) / 8 * i;
@@ -48,18 +48,18 @@ void TFT_Char(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, char c, tCo
 			line = pchar[0];
 			break;
 		case 2:
-			line = (pchar[0] << 8) | pchar[1];
+			line = (uint64_t)((pchar[0] << 8) | pchar[1]);
 			break;
 		case 3:
 		default:
-			line = (pchar[0] << 16) | (pchar[1] << 8) | pchar[2];
+			line = (uint64_t)((pchar[0] << 16) | (pchar[1] << 8) | pchar[2]);
 			break;
 		}
 		for (uint16_t j = 0; j < fontWidth; j++) {
-			if (line & (1 << (fontWidth - j + offset - 1))) {
-				TFT_pixel(buffer, (x + j), y, (tColor)color);
+			if (line & (uint64_t)(1 << (fontWidth - j + offset - 1))) {
+				TFT_pixel(buffer, (uint16_t)(x + j), y, (tColor)color);
 			} else {
-				TFT_pixel(buffer, (x + j), y,  (tColor)background);
+				TFT_pixel(buffer, (uint16_t)(x + j), y,  (tColor)background);
 			}
 		}
 		y++;
@@ -74,10 +74,10 @@ void TFT_String(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, const cha
 		if (*current_char >= 0x20){
 			TFT_Char(buffer, currentX, currentY, *current_char, color, background);
 		}
-		currentX+=buffer.font->Width;
+		currentX=(uint16_t)(currentX + buffer.font->Width);
 		if(currentX+buffer.font->Width > buffer.width || *current_char == '\n'){
 			currentX=0;
-			currentY+=buffer.font->Height;
+			currentY= (uint16_t)(currentY + buffer.font->Height);
 		}
 	}
 }
@@ -90,5 +90,5 @@ void TFT_Set_brightness(uint16_t brightness){
 	}
 
 	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
-	TIM3->CCR1 = (256-brightness)*4;
+	TIM3->CCR1 = (uint32_t)((256-brightness)*4);
 }

@@ -20,13 +20,11 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "crc.h"
-#include "fatfs.h"
 #include "i2c.h"
 #include "ltdc.h"
 #include "quadspi.h"
 #include "rng.h"
 #include "tim.h"
-#include "usb_device.h"
 #include "gpio.h"
 #include "fmc.h"
 
@@ -41,6 +39,8 @@
 #include "ext_flash.h"
 
 #include <stdio.h>
+#include <string.h>
+
 
 /* USER CODE END Includes */
 
@@ -75,6 +75,43 @@ static void MPU_Config(void);
 /* USER CODE BEGIN 0 */
 volatile uint32_t time = 0;
 volatile uint32_t period = 0;
+
+
+void printHex(const char * prefix, size_t length, uint8_t * buffer){
+	printf(prefix);
+	for(size_t i =0; i<length; i++){
+		if(i>0){
+			printf(" ");
+		}
+		printf("%02X", buffer[i]);
+	}
+	printf("\n");
+}
+
+void printFlashStatus(){
+	uint8_t flash_status;
+	SST26_Status(&flash_status);
+	printHex("Status ", 1, &flash_status);
+}
+
+void qspi_error(){
+	log_error("QSPI error: 0x%02X, state: 0x%02X", HAL_QSPI_GetError(&hqspi), HAL_QSPI_GetState(&hqspi));
+	Error_Handler();
+}
+
+void printFlashData(uint32_t size){
+	HAL_StatusTypeDef status;
+	uint8_t hellobuffer[size];
+	memset(hellobuffer, 0, size);
+	printFlashStatus();
+	if((status = SST26_Read(0, size, hellobuffer))!=HAL_OK){
+		log_error("Read error: 0x%02X", status);
+		qspi_error();
+	}
+	printHex("Read ", size, hellobuffer);
+
+}
+
 
 /* USER CODE END 0 */
 
@@ -121,14 +158,7 @@ int main(void)
   MX_TIM1_Init();
   MX_QUADSPI_Init();
   MX_CRC_Init();
-  MX_FATFS_Init();
-  MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
-	SST26_config.hqspi = &hqspi;
-	SST26_config.timeout = 100;
-
-	SST26_init();
-
 	pump_config.port = PUMP_EN_GPIO_Port;
 	pump_config.pin = PUMP_EN_Pin;
 	pump_init();
@@ -152,6 +182,38 @@ int main(void)
 	log_info("Info log");
 	log_warn("Warn log");
 	log_error("Error log");
+
+
+	SST26_config.hqspi = &hqspi;
+	SST26_config.timeout = 100;
+
+	HAL_StatusTypeDef status = SST26_init();
+	if (status!=HAL_OK){
+		log_error("Cannot initialize SST26 chip (external flash): 0x%02X", status);
+		qspi_error();
+	}
+
+	const char * helloworld = "Hello, world!";
+	const size_t hellolength = strlen(helloworld);
+
+	printFlashData(hellolength);
+
+	if((status = SST26_EraseSector(0))!=HAL_OK){
+		log_error("Erase sector error: 0x%02X", status);
+		qspi_error();
+	}
+
+	printFlashData(hellolength);
+
+	if((status = SST26_Write(0, strlen(helloworld), (uint8_t*)helloworld)) != HAL_OK){
+		log_error("Page program error: 0x%02X", status);
+	}
+
+	printFlashData(hellolength);
+
+	while(1){
+		HAL_Delay(10000);
+	}
 
 	gt911_irq = false;
 	if (GT911_Init() != HAL_OK) {
@@ -218,12 +280,13 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_HSI
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_CSI|RCC_OSCILLATORTYPE_HSI
                               |RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_DIV1;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
+  RCC_OscInitStruct.CSIState = RCC_CSI_ON;
+  RCC_OscInitStruct.CSICalibrationValue = 16;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 2;
@@ -256,8 +319,8 @@ void SystemClock_Config(void)
     Error_Handler();
   }
   PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_LTDC|RCC_PERIPHCLK_RNG
-                              |RCC_PERIPHCLK_I2C1|RCC_PERIPHCLK_USB
-                              |RCC_PERIPHCLK_QSPI|RCC_PERIPHCLK_FMC;
+                              |RCC_PERIPHCLK_I2C1|RCC_PERIPHCLK_QSPI
+                              |RCC_PERIPHCLK_FMC|RCC_PERIPHCLK_CKPER;
   PeriphClkInitStruct.PLL2.PLL2M = 3;
   PeriphClkInitStruct.PLL2.PLL2N = 60;
   PeriphClkInitStruct.PLL2.PLL2P = 2;
@@ -275,17 +338,14 @@ void SystemClock_Config(void)
   PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOWIDE;
   PeriphClkInitStruct.PLL3.PLL3FRACN = 0;
   PeriphClkInitStruct.FmcClockSelection = RCC_FMCCLKSOURCE_PLL2;
-  PeriphClkInitStruct.QspiClockSelection = RCC_QSPICLKSOURCE_D1HCLK;
+  PeriphClkInitStruct.QspiClockSelection = RCC_QSPICLKSOURCE_CLKP;
+  PeriphClkInitStruct.CkperClockSelection = RCC_CLKPSOURCE_CSI;
   PeriphClkInitStruct.RngClockSelection = RCC_RNGCLKSOURCE_PLL;
   PeriphClkInitStruct.I2c123ClockSelection = RCC_I2C123CLKSOURCE_HSI;
-  PeriphClkInitStruct.UsbClockSelection = RCC_USBCLKSOURCE_HSI48;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
   {
     Error_Handler();
   }
-  /** Enable USB Voltage detector
-  */
-  HAL_PWREx_EnableUSBVoltageDetector();
 }
 
 /* USER CODE BEGIN 4 */

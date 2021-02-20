@@ -37,7 +37,7 @@ void TFT_pixel(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, tColor col
 void TFT_fill(struct tTftFramebuffer buffer, tColor color);
 void TFT_fill_rectangle(struct tTftFramebuffer buffer, uint16_t x0, uint16_t x1, uint16_t y0, uint16_t y1, tColor color);
 
-void TFT_Char(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, char c, tColor color, tColor background);
+void TFT_Char(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, int c, tColor color, tColor background);
 void TFT_String(struct tTftFramebuffer buffer, uint16_t x, uint16_t y, const char* str, tColor color, tColor background);
 
 tColor color_rgb(uint8_t r, uint8_t g, uint8_t b);

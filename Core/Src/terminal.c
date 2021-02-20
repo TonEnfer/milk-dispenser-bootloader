@@ -68,9 +68,11 @@ int __io_putchar(int ch) {
 }
 
 int _write(int file, char *ptr, int len) {
-	int DataIdx;
-	for (DataIdx = 0; DataIdx < len; DataIdx++) {
-		__io_putchar(*ptr++);
+	if(file == stdout->_file){
+		int DataIdx;
+		for (DataIdx = 0; DataIdx < len; DataIdx++) {
+			__io_putchar(*ptr++);
+		}
 	}
 	return len;
 }
@@ -81,13 +83,13 @@ tColor terminal_color(tColor fg) {
 	return backup;
 }
 
-static uint16_t get_line_position(uint16_t buffer_line) {
-	uint16_t first_line = (terminal_config.buffer.line + 1) % terminalHeight;
+static int get_line_position(uint16_t buffer_line) {
+	int first_line = (terminal_config.buffer.line + 1) % terminalHeight;
 	if (buffer_line < first_line) {
-		buffer_line += terminalHeight;
+		buffer_line = (uint16_t)(buffer_line + terminalHeight);
 	}
-	uint16_t line_on_screen = buffer_line - first_line;
-	uint16_t line_y_on_screen = line_on_screen * FONT.Height;
+	int line_on_screen = buffer_line - first_line;
+	int line_y_on_screen = line_on_screen * FONT.Height;
 	return line_y_on_screen;
 }
 
@@ -95,8 +97,8 @@ static void repaint_char(uint16_t line, uint16_t symbol) {
 	sFONT *backup = terminal_config.framebuffer->font;
 	terminal_config.framebuffer->font = &FONT;
 
-	uint16_t char_y = get_line_position(line);
-	uint16_t char_x = symbol * FONT.Width;
+	uint16_t char_y = (uint16_t)get_line_position(line);
+	uint16_t char_x = (uint16_t)(symbol * FONT.Width);
 	int ch = terminal_config.buffer.text[line][symbol];
 	tColor bg = terminal_config.buffer.bg[line][symbol];
 	tColor fg = terminal_config.buffer.fg[line][symbol];

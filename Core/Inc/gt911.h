@@ -15,8 +15,8 @@
 #define GT911_MAX_WIDTH		1024    	//Touchscreen pad max width
 #define GT911_MAX_HEIGHT		600			//Touchscreen pad max height
 
-#define GT911_CMD_WR_ADDR		0XBA 					//Write data command
-#define GT911_CMD_RD_ADDR   	0XBB 				//Read data command
+#define GT911_CMD_WR_ADDR		((uint16_t)(0XBA)) 					//Write data command
+#define GT911_CMD_RD_ADDR   	((uint16_t)(0XBB)) 				//Read data command
 //#define GT911_CMD_WR_ADDR		(0X14 << 1)					//Write data command
 //#define GT911_CMD_RD_ADDR   	GT911_CMD_WR_ADDR+1 				//Read data command
 
@@ -63,8 +63,8 @@ HAL_StatusTypeDef GT911_Scan(uint32_t timeout);
 
 void GT911_CopyShadow();
 
-HAL_StatusTypeDef GT911_Read_ID(uint8_t* buf, size_t len);
+HAL_StatusTypeDef GT911_Read_ID(uint8_t* buf, uint16_t len);
 
-HAL_StatusTypeDef GT911_RD_Reg(uint16_t reg, uint8_t *buf, uint8_t len);
+HAL_StatusTypeDef GT911_RD_Reg(uint16_t reg, uint8_t *buf, uint16_t len);
 
 #endif /* GT911_GT911_H_ */

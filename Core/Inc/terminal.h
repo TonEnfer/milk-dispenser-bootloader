@@ -13,8 +13,9 @@
 #include "tft.h"
 
 void terminal_init(struct tTftFramebuffer *framebuffer);
-int fputc(int ch, FILE *f);
-int fputs(const char*__restrict, FILE*__restrict);
+
+int __io_putchar(int ch);
+int _write(int file, char *ptr, int len);
 
 tColor terminal_color(tColor fb);
 #endif /* INC_TERMINAL_H_ */
