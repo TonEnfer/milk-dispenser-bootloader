@@ -126,12 +126,7 @@ void dummy() {
 	return;
 }
 
-void EE_write(){
 
-}
-void EE_read(){
-
-}
 /* USER CODE END 0 */
 
 /**
@@ -198,6 +193,8 @@ int main(void)
 	HAL_Delay(100);
 	HAL_GPIO_WritePin(DISP_EN_GPIO_Port, DISP_EN_Pin, GPIO_PIN_SET);
 	HAL_Delay(100);
+
+	log_info("This is run #%llu", AppConfig_incrementRuns());
 
 	dummy();
 
