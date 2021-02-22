@@ -20,27 +20,29 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "crc.h"
+#include "fatfs.h"
 #include "i2c.h"
 #include "ltdc.h"
 #include "quadspi.h"
 #include "rng.h"
 #include "tim.h"
+#include "usb_device.h"
 #include "gpio.h"
 #include "fmc.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "tft.h"
-#include "terminal.h"
-#include "log.h"
-#include "gt911.h"
-#include "pump.h"
-#include "pump_power.h"
-#include "ext_flash.h"
-
 #include <stdio.h>
 #include <string.h>
-
+#include <usbd_core.h>
+#include "config.h"
+#include "gt911.h"
+#include "log.h"
+#include "pump.h"
+#include "pump_power.h"
+#include "sst26_flash.h"
+#include "tft.h"
+#include "terminal.h"
 
 /* USER CODE END Includes */
 
@@ -61,7 +63,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+extern USBD_HandleTypeDef hUsbDeviceFS;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -76,14 +78,21 @@ static void MPU_Config(void);
 volatile uint32_t time = 0;
 volatile uint32_t period = 0;
 
+FATFS FatFs;
+FRESULT FatResult;
+
 
 void printHex(const char * prefix, size_t length, uint8_t * buffer){
 	printf(prefix);
 	for(size_t i =0; i<length; i++){
 		if(i>0){
-			printf(" ");
+			if(i%8 == 0){
+				printf("\n");
+			}else{
+				printf(" ");
+			}
 		}
-		printf("%02X", buffer[i]);
+		printf("0x%02X", buffer[i]);
 	}
 	printf("\n");
 }
@@ -112,7 +121,17 @@ void printFlashData(uint32_t size){
 
 }
 
+void dummy() {
+	printHex("EEPROM:\n", sizeof(appConfig), (uint8_t*)(&appConfig));
+	return;
+}
 
+void EE_write(){
+
+}
+void EE_read(){
+
+}
 /* USER CODE END 0 */
 
 /**
@@ -122,6 +141,7 @@ void printFlashData(uint32_t size){
 int main(void)
 {
   /* USER CODE BEGIN 1 */
+
   /* USER CODE END 1 */
 
   /* MPU Configuration--------------------------------------------------------*/
@@ -158,7 +178,10 @@ int main(void)
   MX_TIM1_Init();
   MX_QUADSPI_Init();
   MX_CRC_Init();
+  MX_USB_DEVICE_Init();
+  MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
+  USBD_Stop(&hUsbDeviceFS);
 	pump_config.port = PUMP_EN_GPIO_Port;
 	pump_config.pin = PUMP_EN_Pin;
 	pump_init();
@@ -176,7 +199,7 @@ int main(void)
 	HAL_GPIO_WritePin(DISP_EN_GPIO_Port, DISP_EN_Pin, GPIO_PIN_SET);
 	HAL_Delay(100);
 
-	printf("Hello, world!\n");
+	dummy();
 
 	log_debug("Debug log");
 	log_info("Info log");
@@ -185,34 +208,12 @@ int main(void)
 
 
 	SST26_config.hqspi = &hqspi;
-	SST26_config.timeout = 100;
+	SST26_config.timeout = 1000;
 
 	HAL_StatusTypeDef status = SST26_init();
 	if (status!=HAL_OK){
 		log_error("Cannot initialize SST26 chip (external flash): 0x%02X", status);
 		qspi_error();
-	}
-
-	const char * helloworld = "Hello, world!";
-	const size_t hellolength = strlen(helloworld);
-
-	printFlashData(hellolength);
-
-	if((status = SST26_EraseSector(0))!=HAL_OK){
-		log_error("Erase sector error: 0x%02X", status);
-		qspi_error();
-	}
-
-	printFlashData(hellolength);
-
-	if((status = SST26_Write(0, strlen(helloworld), (uint8_t*)helloworld)) != HAL_OK){
-		log_error("Page program error: 0x%02X", status);
-	}
-
-	printFlashData(hellolength);
-
-	while(1){
-		HAL_Delay(10000);
 	}
 
 	gt911_irq = false;
@@ -224,30 +225,70 @@ int main(void)
 	HAL_Delay(100);
 	gt911_irq = true;
 
-	log_info("Touch the screen within 10 seconds to activate bootloader");
-	uint32_t timeout_at = HAL_GetTick() + 10000;
+	log_info("Touch the screen within %d seconds to activate flash drive", appConfig.wait_for_flash_activation_confirmation_ms/1000);
+	uint32_t timeout_at = HAL_GetTick() + appConfig.wait_for_flash_activation_confirmation_ms;
+	uint32_t printAt = HAL_GetTick()+1000;
 	while (HAL_GetTick() < timeout_at) {
-		log_info("%ld  ", (timeout_at - HAL_GetTick()) / 1000);
 		if (gt911.TouchCount > 0) {
-			log_info("Activating bootloader in 5 seconds");
-			HAL_Delay(5000);
+			log_info("Activating flash drive in %d seconds", appConfig.activate_flash_drive_timeout_ms/1000);
+			log_info("Reboot device when finished");
+			HAL_Delay(appConfig.activate_flash_drive_timeout_ms);
+			USBD_Start(&hUsbDeviceFS);
 			while (1)
 				;
 		}
-		HAL_Delay(1000);
+		if(HAL_GetTick() > printAt){
+			printAt = HAL_GetTick()+1000;
+			log_info("%ld  ", (timeout_at - HAL_GetTick()) / 1000);
+		}
 	}
-	log_info("Bootloader was not activated. "
-			"Running main application in 5 seconds");
-	HAL_Delay(5000);
-	while (1)
-		;
+	log_info("Bootloader was not activated. Running main application in %d seconds", appConfig.activate_main_program_timeout_ms/1000);
+	HAL_Delay(appConfig.activate_main_program_timeout_ms);
+
+	FatResult = f_mount(&FatFs, "", 1);
+	if(FatResult != FR_OK){
+		log_error("f_mount error: 0x%02X", FatResult);
+		Error_Handler();
+	}
+
+	log_info("listing files in root");
+	DIR dir;
+	FatResult = f_opendir(&dir, "/");
+	if(FatResult != FR_OK){
+		log_error("f_opendir error: 0x%02X", FatResult);
+		Error_Handler();
+	}
+
+	FILINFO fileinfo;
+	for(;;){
+		FatResult = f_readdir(&dir, &fileinfo);
+		if(FatResult != FR_OK){
+			log_error("f_readdir error: 0x%02X", FatResult);
+			Error_Handler();
+		}
+		if (strlen(fileinfo.fname) == 0) {
+			break;
+		}
+
+		log_info("%c------ %-10lu %s", ((fileinfo.fattrib & AM_DIR) ? 'd':' '),
+				fileinfo.fsize, fileinfo.fname);
+
+	}
+
+	f_closedir(&dir);
+//
+//	if(check_firmware_crc()){
+//		update_firmware_if_needed();
+//	}
+//
+//	load_application(0x08000000 + 0x32000); // FLASH + 200kB
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 	while (1) {
-		HAL_Delay(10000);
+		HAL_Delay(100000);
 		printf("[%8ld] Hello, world!\n", HAL_GetTick());
     /* USER CODE END WHILE */
 
@@ -280,13 +321,12 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_CSI|RCC_OSCILLATORTYPE_HSI
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_HSI
                               |RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_DIV1;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.CSIState = RCC_CSI_ON;
-  RCC_OscInitStruct.CSICalibrationValue = 16;
+  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 2;
@@ -319,8 +359,8 @@ void SystemClock_Config(void)
     Error_Handler();
   }
   PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_LTDC|RCC_PERIPHCLK_RNG
-                              |RCC_PERIPHCLK_I2C1|RCC_PERIPHCLK_QSPI
-                              |RCC_PERIPHCLK_FMC|RCC_PERIPHCLK_CKPER;
+                              |RCC_PERIPHCLK_I2C1|RCC_PERIPHCLK_USB
+                              |RCC_PERIPHCLK_QSPI|RCC_PERIPHCLK_FMC;
   PeriphClkInitStruct.PLL2.PLL2M = 3;
   PeriphClkInitStruct.PLL2.PLL2N = 60;
   PeriphClkInitStruct.PLL2.PLL2P = 2;
@@ -338,14 +378,17 @@ void SystemClock_Config(void)
   PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOWIDE;
   PeriphClkInitStruct.PLL3.PLL3FRACN = 0;
   PeriphClkInitStruct.FmcClockSelection = RCC_FMCCLKSOURCE_PLL2;
-  PeriphClkInitStruct.QspiClockSelection = RCC_QSPICLKSOURCE_CLKP;
-  PeriphClkInitStruct.CkperClockSelection = RCC_CLKPSOURCE_CSI;
+  PeriphClkInitStruct.QspiClockSelection = RCC_QSPICLKSOURCE_D1HCLK;
   PeriphClkInitStruct.RngClockSelection = RCC_RNGCLKSOURCE_PLL;
   PeriphClkInitStruct.I2c123ClockSelection = RCC_I2C123CLKSOURCE_HSI;
+  PeriphClkInitStruct.UsbClockSelection = RCC_USBCLKSOURCE_HSI48;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
   {
     Error_Handler();
   }
+  /** Enable USB Voltage detector
+  */
+  HAL_PWREx_EnableUSBVoltageDetector();
 }
 
 /* USER CODE BEGIN 4 */
@@ -414,6 +457,7 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
 	/* User can add his own implementation to report the HAL error return state */
+	log_error("Error handler");
 	__disable_irq();
 	while (1) {
 	}

@@ -1,29 +1,17 @@
 /*
- * SST26VF064B quadspi flash chip driver
+ * ext_flash.h
+ *
+ *  Created on: Feb 21, 2021
+ *      Author: Mikhail
  */
 
-#ifndef INC_SST26VF064B_H_
-#define INC_SST26VF064B_H_
+#ifndef INC_EXT_FLASH_H_
+#define INC_EXT_FLASH_H_
 
 #include "stm32h7xx_hal.h"
 
+HAL_StatusTypeDef Flash2Write(uint32_t address, uint8_t *buffer, uint32_t size);
 
-HAL_StatusTypeDef SST26_init();
+HAL_StatusTypeDef Flash2Read(uint32_t address, uint8_t *buffer, uint32_t size);
 
-HAL_StatusTypeDef SST26_Read(uint32_t address, uint32_t size, uint8_t *buffer);
-
-/**
- * This function is a dumb write. It does nothing smart about preserving any data or clearing it. It just performs a write operation on selected address.
- */
-HAL_StatusTypeDef SST26_Write(uint32_t address, uint32_t size, uint8_t *buffer);
-HAL_StatusTypeDef SST26_EraseSector(uint32_t address);
-
-HAL_StatusTypeDef SST26_ReadDeviceID(uint8_t *ID_REG);
-HAL_StatusTypeDef SST26_Status(uint8_t *STATUS_REG);
-
-struct tSST26Config{
-	QSPI_HandleTypeDef *hqspi;
-	uint32_t timeout;
-} SST26_config;
-
-#endif /* INC_SST26VF064B_H_ */
+#endif /* INC_EXT_FLASH_H_ */

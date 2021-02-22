@@ -45,7 +45,9 @@ MEMORY
   RAM_D1    (xrw)    : ORIGIN = 0x24000000,   LENGTH = 512K
   RAM_D2    (xrw)    : ORIGIN = 0x30000000,   LENGTH = 288K
   RAM_D3    (xrw)    : ORIGIN = 0x38000000,   LENGTH = 64K
-  FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 2048K
+  FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 200K-4K
+  EEPROM    (rx)    : ORIGIN = 0x8031000,   LENGTH = 4K
+  APP    (rx)    : ORIGIN = 0x8032000,   LENGTH = 2M-200K
 }
 
 /* Sections */
@@ -58,6 +60,13 @@ SECTIONS
     KEEP(*(.isr_vector)) /* Startup code */
     . = ALIGN(4);
   } >FLASH
+
+  .eeprom :
+  {
+	. = ALIGN(4);
+	*(.eeprom)
+	. = ALIGN(4);
+  } > EEPROM
 
   /* The program code and other data into "FLASH" Rom type memory */
   .text :
@@ -74,7 +83,7 @@ SECTIONS
 
     . = ALIGN(4);
     _etext = .;        /* define a global symbols at end of code */
-  } >FLASH
+  } > FLASH
 
   /* Constant data into "FLASH" Rom type memory */
   .rodata :
@@ -83,13 +92,13 @@ SECTIONS
     *(.rodata)         /* .rodata sections (constants, strings, etc.) */
     *(.rodata*)        /* .rodata* sections (constants, strings, etc.) */
     . = ALIGN(4);
-  } >FLASH
+  } > FLASH
 
   .ARM.extab   : {
     . = ALIGN(4);
     *(.ARM.extab* .gnu.linkonce.armextab.*)
     . = ALIGN(4);
-  } >FLASH
+  } > FLASH
 
   .ARM : {
     . = ALIGN(4);
@@ -97,7 +106,7 @@ SECTIONS
     *(.ARM.exidx*)
     __exidx_end = .;
     . = ALIGN(4);
-  } >FLASH
+  } > FLASH
 
   .preinit_array     :
   {
@@ -106,7 +115,7 @@ SECTIONS
     KEEP (*(.preinit_array*))
     PROVIDE_HIDDEN (__preinit_array_end = .);
     . = ALIGN(4);
-  } >FLASH
+  } > FLASH
 
   .init_array :
   {
@@ -116,7 +125,7 @@ SECTIONS
     KEEP (*(.init_array*))
     PROVIDE_HIDDEN (__init_array_end = .);
     . = ALIGN(4);
-  } >FLASH
+  } > FLASH
 
   .fini_array :
   {
@@ -126,7 +135,7 @@ SECTIONS
     KEEP (*(.fini_array*))
     PROVIDE_HIDDEN (__fini_array_end = .);
     . = ALIGN(4);
-  } >FLASH
+  } > FLASH
 
   /* Used by the startup to initialize data */
   _sidata = LOADADDR(.data);
