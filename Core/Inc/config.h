@@ -11,8 +11,10 @@ struct tBootloaderConfig {
 	uint64_t activate_main_program_timeout_ms;
 };
 
-extern struct tBootloaderConfig appConfig;
 
-uint64_t AppConfig_incrementRuns();
+struct tBootloaderConfig* BtldrConfig_Get();
+
+uint64_t BtldrConfig_incrementRuns();
+
 
 #endif /* INC_CONFIG_H_ */

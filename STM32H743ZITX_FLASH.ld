@@ -45,9 +45,8 @@ MEMORY
   RAM_D1    (xrw)    : ORIGIN = 0x24000000,   LENGTH = 512K
   RAM_D2    (xrw)    : ORIGIN = 0x30000000,   LENGTH = 288K
   RAM_D3    (xrw)    : ORIGIN = 0x38000000,   LENGTH = 64K
-  FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 200K-4K
-  EEPROM    (rx)    : ORIGIN = 0x8031000,   LENGTH = 4K
-  APP    (rx)    : ORIGIN = 0x8032000,   LENGTH = 2M-200K
+  FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 256K
+  APP    (rx)    : ORIGIN = 0x8040000,   LENGTH = 2M - 256K
 }
 
 /* Sections */
@@ -60,13 +59,6 @@ SECTIONS
     KEEP(*(.isr_vector)) /* Startup code */
     . = ALIGN(4);
   } >FLASH
-
-  .eeprom :
-  {
-	. = ALIGN(4);
-	*(.eeprom)
-	. = ALIGN(4);
-  } > EEPROM
 
   /* The program code and other data into "FLASH" Rom type memory */
   .text :
