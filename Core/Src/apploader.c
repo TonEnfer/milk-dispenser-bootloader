@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "apploader.h"
+#include "int_flash.h"
 #include "ff.h"
 #include "log.h"
 
@@ -133,9 +134,6 @@ static enum iHexCallbackRes iHexRowValidateChecksum(
 	return sum == checksum;
 }
 
-static void writeData(uint16_t ha, uint16_t la, uint8_t *data, size_t count) {
-	uint32_t address = ((uint32_t) ha) << 16 | la;
-}
 
 static bool same(uint16_t ha, uint16_t la, uint8_t *data, size_t count){
 	uint32_t address = ((uint32_t) ha) << 16 | la;
@@ -175,15 +173,23 @@ static enum iHexCallbackRes ihexRowCheckSame(struct tHexRowParsed rowParsed,
 	return IHEX_CB_OK;
 }
 
+static bool writeData(uint16_t ha, uint16_t la, uint8_t *data, size_t count) {
+	uint32_t address = ((uint32_t) ha) << 16 | la;
+	return IntFlash_write(address, data, count);
+}
+
 static enum iHexCallbackRes ihexRowWriteMem(struct tHexRowParsed rowParsed,
 		uint8_t *data, uint8_t checksum) {
 	static uint16_t highAddress = 0;
 
 	switch (rowParsed.recordType) {
 	case IHEX_DATA:
-		writeData(highAddress, rowParsed.addess, data, rowParsed.byteCount);
+		if(!writeData(highAddress, rowParsed.addess, data, rowParsed.byteCount)){
+			return IHEX_CB_ERROR;
+		}
 		break;
 	case IHEX_EOF:
+		IntFlash_sync();
 		return IHEX_CB_EOF;
 		break;
 	case IHEX_EXT_LIN_ADDR:
@@ -280,10 +286,17 @@ static bool firmwareOK() {
 }
 
 static bool firmwareWrite(){
+	if(HAL_OK!=IntFlash_unlock()){
+		return false;
+	}
+	// TODO: IntFlash_erase_app();
 	return firmwareAction(ihexRowWriteMem);
 }
 
 enum APL_RES AppLoader_check_firmware() {
+	if(HAL_OK!=IntFlash_unlock()){
+		return APPLOADER_ERROR;
+	}
 	if (!firmwareExists()) {
 		return APPLOADER_NO_FIRMWARE;
 	}
@@ -293,18 +306,46 @@ enum APL_RES AppLoader_check_firmware() {
 	return APPLOADER_OK;
 }
 
-void AppLoader_update_firmware() {
+bool AppLoader_update_firmware() {
+	if(HAL_OK!=IntFlash_unlock()){
+		return false;
+	}
 	if(firmwareSame()){
-		return;
+		return true;
 	}
 	firmwareWrite();
+	return true;
 }
-void AppLoader_verify_firmware() {
+
+bool AppLoader_verify_firmware() {
+	if(HAL_OK!=IntFlash_unlock()){
+		return false;
+	}
 	if(!firmwareSame()){
-		log_error("firmware validation failed");
+		log_error("Firmware validation failed");
 		Error_Handler();
 	}
+	return true;
 }
 
 void AppLoader_load_application() {
+
+	const uint32_t app_start_address = 0x08040000;
+	const uint32_t app_jump_address = *((__IO uint32_t*)(app_start_address+4));
+
+	__IO uint32_t *estack = (__IO uint32_t*) app_start_address;
+	uint32_t stack_pointer = *estack;
+
+
+	void(*app)(void) = (void(*)(void)) app_jump_address;
+
+//	HAL_RCC_DeInit();
+//	HAL_DeInit();
+
+//	SysTick->CTRL = 0;
+//	SysTick->LOAD = 0;
+//	SysTick->VAL = 0;
+
+	__set_MSP(stack_pointer);
+	app();
 }

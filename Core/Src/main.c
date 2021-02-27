@@ -19,12 +19,10 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "crc.h"
 #include "fatfs.h"
 #include "i2c.h"
 #include "ltdc.h"
 #include "quadspi.h"
-#include "rng.h"
 #include "tim.h"
 #include "usb_device.h"
 #include "gpio.h"
@@ -38,6 +36,7 @@
 #include "apploader.h"
 #include "config.h"
 #include "gt911.h"
+#include "int_flash.h"
 #include "log.h"
 #include "pump.h"
 #include "pump_power.h"
@@ -100,6 +99,39 @@ void printHex(const char *prefix, size_t length, uint8_t *buffer) {
  */
 int main(void) {
 	/* USER CODE BEGIN 1 */
+	HAL_StatusTypeDef status = HAL_ERROR;
+	/*
+	if(HAL_OK !=HAL_FLASH_Unlock()){
+		Error_Handler();
+	}
+	if(HAL_OK!=HAL_FLASHEx_Unlock_Bank1()){
+		Error_Handler();
+	}
+	if(HAL_OK!=HAL_FLASHEx_Unlock_Bank2()){
+		Error_Handler();
+	}
+	if(HAL_OK!=HAL_FLASH_OB_Unlock()){
+		Error_Handler();
+	}
+
+	FLASH_OBProgramInitTypeDef pOBInit;
+	HAL_FLASHEx_OBGetConfig(&pOBInit);
+	asm("nop");
+
+	uint32_t prar_rpg = FLASH_PRAR_DMEP | (0xFF << FLASH_PRAR_PROT_AREA_START_Pos);
+
+	FLASH->PRAR_PRG1 = prar_rpg;
+	FLASH->PRAR_PRG2 = prar_rpg;
+
+	FLASH->WPSN_PRG1 = 0xFF;
+	FLASH->WPSN_PRG2 = 0xFF;
+
+	FLASH->OPTCCR |= FLASH_OPTCR_MER;
+
+	asm("nop");
+
+	while(1);
+	HAL_FLASHEx_OBProgram(&pOBInit);*/
 
 	/* USER CODE END 1 */
 
@@ -131,26 +163,18 @@ int main(void) {
 	MX_GPIO_Init();
 	MX_LTDC_Init();
 	MX_TIM3_Init();
-	MX_RNG_Init();
 	MX_FMC_Init();
 	MX_I2C1_Init();
 	MX_TIM1_Init();
 	MX_QUADSPI_Init();
-	MX_CRC_Init();
 	MX_USB_DEVICE_Init();
 	MX_FATFS_Init();
 	/* USER CODE BEGIN 2 */
 	USBD_Stop(&hUsbDeviceFS);
-	pump_config.port = PUMP_EN_GPIO_Port;
-	pump_config.pin = PUMP_EN_Pin;
-	pump_init();
 
 	struct tTftFramebuffer framebuffer = TFT_init_framebuffer(&hltdc);
 	terminal_init(&framebuffer);
 
-	pump_power_config.timer = &htim1;
-	pump_power_config.channel = TIM_CHANNEL_1;
-	pump_power_init();
 	TFT_Set_brightness(256);
 
 	HAL_GPIO_WritePin(DISP_EN_GPIO_Port, DISP_EN_Pin, GPIO_PIN_RESET);
@@ -166,7 +190,7 @@ int main(void) {
 	SST26_config.hqspi = &hqspi;
 	SST26_config.timeout = 1000;
 
-	HAL_StatusTypeDef status = SST26_init();
+	status = SST26_init();
 	if (status != HAL_OK) {
 		log_error("Cannot initialize SST26 chip (external flash): 0x%02X",
 				status);
@@ -245,6 +269,7 @@ int main(void) {
 
 	f_closedir(&dir);
 
+	log_info("Checking firmware");
 	enum APL_RES aplres = AppLoader_check_firmware();
 	switch (aplres) {
 	case APPLOADER_OK:
@@ -262,10 +287,23 @@ int main(void) {
 	}
 
 	if (APPLOADER_OK == aplres) {
-		AppLoader_update_firmware();
-		AppLoader_verify_firmware();
+		log_info("Firmware check ok: code 0x%02X", aplres);
+		log_info("Updating firmware");
+		if (!AppLoader_update_firmware()) {
+			log_error("Firmware update failed");
+			Error_Handler();
+		}
+		log_info("Verifying...");
+		if (!AppLoader_verify_firmware()) {
+			log_error("Firmware verification failed");
+			Error_Handler();
+		}
 	}
 
+	// Deinit what we can
+	f_mount(NULL, "", 1);
+
+	log_info("Loading application");
 	AppLoader_load_application();
 
 	/* USER CODE END 2 */
@@ -289,7 +327,6 @@ int main(void) {
 void SystemClock_Config(void) {
 	RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
 	RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
-	RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = { 0 };
 
 	/** Supply configuration update enable
 	 */
@@ -341,36 +378,6 @@ void SystemClock_Config(void) {
 	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK) {
 		Error_Handler();
 	}
-	PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_LTDC
-			| RCC_PERIPHCLK_RNG | RCC_PERIPHCLK_I2C1 | RCC_PERIPHCLK_USB
-			| RCC_PERIPHCLK_QSPI | RCC_PERIPHCLK_FMC;
-	PeriphClkInitStruct.PLL2.PLL2M = 3;
-	PeriphClkInitStruct.PLL2.PLL2N = 60;
-	PeriphClkInitStruct.PLL2.PLL2P = 2;
-	PeriphClkInitStruct.PLL2.PLL2Q = 2;
-	PeriphClkInitStruct.PLL2.PLL2R = 3;
-	PeriphClkInitStruct.PLL2.PLL2RGE = RCC_PLL2VCIRANGE_3;
-	PeriphClkInitStruct.PLL2.PLL2VCOSEL = RCC_PLL2VCOWIDE;
-	PeriphClkInitStruct.PLL2.PLL2FRACN = 0;
-	PeriphClkInitStruct.PLL3.PLL3M = 3;
-	PeriphClkInitStruct.PLL3.PLL3N = 20;
-	PeriphClkInitStruct.PLL3.PLL3P = 2;
-	PeriphClkInitStruct.PLL3.PLL3Q = 2;
-	PeriphClkInitStruct.PLL3.PLL3R = 10;
-	PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_3;
-	PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOWIDE;
-	PeriphClkInitStruct.PLL3.PLL3FRACN = 0;
-	PeriphClkInitStruct.FmcClockSelection = RCC_FMCCLKSOURCE_PLL2;
-	PeriphClkInitStruct.QspiClockSelection = RCC_QSPICLKSOURCE_D1HCLK;
-	PeriphClkInitStruct.RngClockSelection = RCC_RNGCLKSOURCE_PLL;
-	PeriphClkInitStruct.I2c123ClockSelection = RCC_I2C123CLKSOURCE_HSI;
-	PeriphClkInitStruct.UsbClockSelection = RCC_USBCLKSOURCE_HSI48;
-	if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK) {
-		Error_Handler();
-	}
-	/** Enable USB Voltage detector
-	 */
-	HAL_PWREx_EnableUSBVoltageDetector();
 }
 
 /* USER CODE BEGIN 4 */
@@ -412,17 +419,11 @@ void MPU_Config(void) {
 	HAL_MPU_ConfigRegion(&MPU_InitStruct);
 	/** Initializes and configures the Region and the memory to be protected
 	 */
-	MPU_InitStruct.Enable = MPU_REGION_ENABLE;
 	MPU_InitStruct.Number = MPU_REGION_NUMBER1;
 	MPU_InitStruct.BaseAddress = 0x30000000;
 	MPU_InitStruct.Size = MPU_REGION_SIZE_128KB;
-	MPU_InitStruct.SubRegionDisable = 0x0;
-	MPU_InitStruct.TypeExtField = MPU_TEX_LEVEL0;
-	MPU_InitStruct.AccessPermission = MPU_REGION_FULL_ACCESS;
-	MPU_InitStruct.DisableExec = MPU_INSTRUCTION_ACCESS_DISABLE;
 	MPU_InitStruct.IsShareable = MPU_ACCESS_NOT_SHAREABLE;
 	MPU_InitStruct.IsCacheable = MPU_ACCESS_CACHEABLE;
-	MPU_InitStruct.IsBufferable = MPU_ACCESS_NOT_BUFFERABLE;
 
 	HAL_MPU_ConfigRegion(&MPU_InitStruct);
 	/* Enables the MPU */
