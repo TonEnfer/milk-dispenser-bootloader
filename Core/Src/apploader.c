@@ -329,7 +329,7 @@ bool AppLoader_verify_firmware() {
 }
 
 void AppLoader_load_application() {
-
+	__disable_irq();
 	const uint32_t app_start_address = 0x08040000;
 	const uint32_t app_jump_address = *((__IO uint32_t*)(app_start_address+4));
 
@@ -338,6 +338,7 @@ void AppLoader_load_application() {
 
 
 	void(*app)(void) = (void(*)(void)) app_jump_address;
+
 
 //	HAL_RCC_DeInit();
 //	HAL_DeInit();

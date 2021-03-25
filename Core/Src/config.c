@@ -36,8 +36,8 @@ static void makeDefaultConfig() {
 			.config = {
 				.application_runs = 0, .application_crc = BAD_CRC,
 				.wait_for_flash_activation_confirmation_ms = 3000,
-				.activate_flash_drive_timeout_ms = 3000,
-				.activate_main_program_timeout_ms = 3000,
+				.activate_flash_drive_timeout_ms = 0,
+				.activate_main_program_timeout_ms = 0,
 			}
 		},
 		.crc = BAD_CRC
