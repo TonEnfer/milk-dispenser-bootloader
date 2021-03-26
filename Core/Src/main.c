@@ -53,6 +53,10 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
+#define MAGIC_CONST (uint32_t)0xA5B6C7E8
+#define BackupRAM_BASE 0x38800000
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -91,6 +95,15 @@ void printHex(const char *prefix, size_t length, uint8_t *buffer) {
 	printf("\n");
 }
 
+void enableBackupRAM() {
+	HAL_PWREx_ConfigSupply(PWR_LDO_SUPPLY);
+	HAL_PWR_EnableBkUpAccess();
+	__HAL_RCC_BKPRAM_CLK_ENABLE();
+	volatile uint32_t i = 0xffff;
+	while (i != 0)
+		i--;
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -98,58 +111,18 @@ void printHex(const char *prefix, size_t length, uint8_t *buffer) {
  * @retval int
  */
 int main(void) {
-
 	/* USER CODE BEGIN 1 */
-	HAL_PWREx_ConfigSupply(PWR_LDO_SUPPLY);
-	HAL_PWR_EnableBkUpAccess();
-	__HAL_RCC_BKPRAM_CLK_ENABLE();
-	volatile uint32_t i = 0xffff;
-	while(i!=0)
-		i--;
 
-	__IO uint32_t *check_flag_address = (__IO uint32_t*) (0x38800000);
+//	SCB->CACR |= 1<<2;
+	enableBackupRAM();
+	__IO uint32_t *load_app_flag = (__IO uint32_t*)(BackupRAM_BASE);
 
-	if (*check_flag_address == 0xAA55BB66) {
-		*check_flag_address = (uint32_t) 0;
+	if (*load_app_flag == MAGIC_CONST) {
+		*load_app_flag = (uint32_t) 0;
 		AppLoader_load_application();
 	}
-	*check_flag_address = (uint32_t)0xAA55BB66;
-
-
 
 	HAL_StatusTypeDef status = HAL_ERROR;
-	/*
-	 if(HAL_OK !=HAL_FLASH_Unlock()){
-	 Error_Handler();
-	 }
-	 if(HAL_OK!=HAL_FLASHEx_Unlock_Bank1()){
-	 Error_Handler();
-	 }
-	 if(HAL_OK!=HAL_FLASHEx_Unlock_Bank2()){
-	 Error_Handler();
-	 }
-	 if(HAL_OK!=HAL_FLASH_OB_Unlock()){
-	 Error_Handler();
-	 }
-
-	 FLASH_OBProgramInitTypeDef pOBInit;
-	 HAL_FLASHEx_OBGetConfig(&pOBInit);
-	 asm("nop");
-
-	 uint32_t prar_rpg = FLASH_PRAR_DMEP | (0xFF << FLASH_PRAR_PROT_AREA_START_Pos);
-
-	 FLASH->PRAR_PRG1 = prar_rpg;
-	 FLASH->PRAR_PRG2 = prar_rpg;
-
-	 FLASH->WPSN_PRG1 = 0xFF;
-	 FLASH->WPSN_PRG2 = 0xFF;
-
-	 FLASH->OPTCCR |= FLASH_OPTCR_MER;
-
-	 asm("nop");
-
-	 while(1);
-	 HAL_FLASHEx_OBProgram(&pOBInit);*/
 
 	/* USER CODE END 1 */
 
@@ -322,6 +295,7 @@ int main(void) {
 	f_mount(NULL, "", 1);
 
 	log_info("Loading application...");
+	*load_app_flag = MAGIC_CONST;
 	HAL_Delay(1000);
 	NVIC_SystemReset();
 
@@ -443,6 +417,14 @@ void MPU_Config(void) {
 	MPU_InitStruct.Size = MPU_REGION_SIZE_128KB;
 	MPU_InitStruct.IsShareable = MPU_ACCESS_NOT_SHAREABLE;
 	MPU_InitStruct.IsCacheable = MPU_ACCESS_CACHEABLE;
+
+	HAL_MPU_ConfigRegion(&MPU_InitStruct);
+	/** Initializes and configures the Region and the memory to be protected
+	 */
+	MPU_InitStruct.Number = MPU_REGION_NUMBER2;
+	MPU_InitStruct.BaseAddress = 0x38800000;
+	MPU_InitStruct.Size = MPU_REGION_SIZE_4KB;
+	MPU_InitStruct.IsCacheable = MPU_ACCESS_NOT_CACHEABLE;
 
 	HAL_MPU_ConfigRegion(&MPU_InitStruct);
 	/* Enables the MPU */
