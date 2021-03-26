@@ -336,16 +336,7 @@ void AppLoader_load_application() {
 	__IO uint32_t *estack = (__IO uint32_t*) app_start_address;
 	uint32_t stack_pointer = *estack;
 
-
 	void(*app)(void) = (void(*)(void)) app_jump_address;
-
-
-//	HAL_RCC_DeInit();
-//	HAL_DeInit();
-
-//	SysTick->CTRL = 0;
-//	SysTick->LOAD = 0;
-//	SysTick->VAL = 0;
 
 	__set_MSP(stack_pointer);
 	app();
