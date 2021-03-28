@@ -47,6 +47,30 @@
 .word _etxt;
 .word _atxt;
 
+.word _srodat
+.word _erodat
+.word _arodat
+
+.word _sextab
+.word _eextab
+.word _aextab
+
+.word _sarm
+.word _earm
+.word _aarm
+
+.word _spreinitArray
+.word _epreinitArray
+.word _apreinitArray
+
+.word _sinitArray
+.word _einitArray
+.word _ainitArray
+
+.word _sfiniArray
+.word _efiniArray
+.word _afiniArray
+
 /**
  * @brief  This is the code that gets called when the processor first
  *          starts execution following a reset event. Only the absolutely
@@ -75,6 +99,42 @@ loader_Reset_Handler:
   ldr r0, =_stxt
   ldr r1, =_etxt
   ldr r2, =_atxt
+
+  bl Loader_CopyCodeToRam
+
+  ldr r0, =_srodat
+  ldr r1, =_erodat
+  ldr r2, =_arodat
+
+  bl Loader_CopyCodeToRam
+
+  ldr r0, =_sextab
+  ldr r1, =_eextab
+  ldr r2, =_aextab
+
+  bl Loader_CopyCodeToRam
+
+  ldr r0, =_sarm
+  ldr r1, =_earm
+  ldr r2, =_aarm
+
+  bl Loader_CopyCodeToRam
+
+  ldr r0, =_spreinitArray
+  ldr r1, =_epreinitArray
+  ldr r2, =_apreinitArray
+
+  bl Loader_CopyCodeToRam
+
+  ldr r0, =_sinitArray
+  ldr r1, =_einitArray
+  ldr r2, =_ainitArray
+
+  bl Loader_CopyCodeToRam
+
+  ldr r0, =_sfiniArray
+  ldr r1, =_efiniArray
+  ldr r2, =_afiniArray
 
   bl Loader_CopyCodeToRam
 

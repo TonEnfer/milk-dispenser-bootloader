@@ -49,6 +49,33 @@ _stxt = LOADADDR(.text);
 _etxt = LOADADDR(.text) + SIZEOF(.text);
 _atxt = ADDR(.text);
 
+_srodat = LOADADDR(.rodata);
+_erodat = LOADADDR(.rodata) + SIZEOF(.rodata);
+_arodat = ADDR(.rodata);
+
+_sextab = LOADADDR(.ARM.extab);
+_eextab = LOADADDR(.ARM.extab) + SIZEOF(.ARM.extab);
+_aextab = ADDR(.ARM.extab);
+
+_sarm = LOADADDR(.ARM);
+_earm = LOADADDR(.ARM) + SIZEOF(.ARM);
+_aarm = ADDR(.ARM);
+
+_spreinitArray = LOADADDR(.preinit_array);
+_epreinitArray = LOADADDR(.preinit_array) + SIZEOF(.preinit_array);
+_apreinitArray = ADDR(.preinit_array);
+
+_sinitArray = LOADADDR(.init_array);
+_einitArray = LOADADDR(.init_array) + SIZEOF(.init_array);
+_ainitArray = ADDR(.init_array);
+
+_sfiniArray = LOADADDR(.fini_array);
+_efiniArray = LOADADDR(.fini_array) + SIZEOF(.fini_array);
+_afiniArray = ADDR(.fini_array);
+
+
+
+
 /* Specify the memory areas */
 MEMORY
 {
@@ -82,7 +109,6 @@ SECTIONS
   /* The startup code goes first into FLASH */
   .isr_vector :
   {
-    _aisr = .;
     . = ALIGN(4);
     KEEP(*(.isr_vector)) /* Startup code */
     . = ALIGN(4);
@@ -112,35 +138,35 @@ SECTIONS
     *(.rodata)         /* .rodata sections (constants, strings, etc.) */
     *(.rodata*)        /* .rodata* sections (constants, strings, etc.) */
     . = ALIGN(4);
-  } >FLASH
+  } >RAM_D2 AT >FLASH
 
-  .ARM.extab   : { *(.ARM.extab* .gnu.linkonce.armextab.*) } >FLASH
+  .ARM.extab   : { *(.ARM.extab* .gnu.linkonce.armextab.*) } >RAM_D2 AT >FLASH
   .ARM : {
     __exidx_start = .;
     *(.ARM.exidx*)
     __exidx_end = .;
-  } >FLASH
+  } >RAM_D2 AT >FLASH
 
   .preinit_array     :
   {
     PROVIDE_HIDDEN (__preinit_array_start = .);
     KEEP (*(.preinit_array*))
     PROVIDE_HIDDEN (__preinit_array_end = .);
-  } >FLASH
+  } >RAM_D2 AT >FLASH
   .init_array :
   {
     PROVIDE_HIDDEN (__init_array_start = .);
     KEEP (*(SORT(.init_array.*)))
     KEEP (*(.init_array*))
     PROVIDE_HIDDEN (__init_array_end = .);
-  } >FLASH
+  } >RAM_D2 AT >FLASH
   .fini_array :
   {
     PROVIDE_HIDDEN (__fini_array_start = .);
     KEEP (*(SORT(.fini_array.*)))
     KEEP (*(.fini_array*))
     PROVIDE_HIDDEN (__fini_array_end = .);
-  } >FLASH
+  } >RAM_D2 AT >FLASH
 
   /* used by the startup to initialize data */
   _sidata = LOADADDR(.data);
